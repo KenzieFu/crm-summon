@@ -3,7 +3,7 @@
     <LayoutHeader stretch-left>
       <template #left-header>
         <div class="flex min-w-0 items-center gap-3">
-          <div class="flex h-9 w-9 items-center justify-center rounded-[12px] bg-gradient-to-br from-teal-500 to-teal-700">
+          <div class="flex h-9 w-9 items-center justify-center rounded-[12px] bg-gradient-to-br from-[#FF6600] to-[#CC5200]">
             <FeatherIcon name="folder" class="h-4 w-4 text-white" />
           </div>
           <div class="min-w-0">
@@ -14,7 +14,7 @@
       <template #right-header>
         <button
           @click="showUpload = true"
-          class="flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+          class="flex items-center gap-1.5 rounded-lg bg-[#FF6600] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#CC5200] transition-colors"
         >
           <FeatherIcon name="upload" class="h-3.5 w-3.5" />
           {{ __("Upload") }}
@@ -41,7 +41,7 @@
             class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all"
             :class="
               activeFolder === qa.id
-                ? 'bg-teal-50 text-teal-700 font-semibold'
+                ? 'bg-[#FFF8F2] text-[#CC5200] font-semibold'
                 : 'text-gray-600 hover:bg-gray-50'
             "
           >
@@ -49,7 +49,7 @@
             <span class="truncate">{{ qa.label }}</span>
             <span
               v-if="qa.count"
-              class="ml-auto text-[9px] bg-teal-100 text-teal-700 rounded-full px-1.5 font-bold"
+              class="ml-auto text-[9px] bg-[#FFF0E6] text-[#CC5200] rounded-full px-1.5 font-bold"
               >{{ qa.count }}</span
             >
           </button>
@@ -89,7 +89,7 @@
         <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
           <div
             class="h-full rounded-full"
-            :class="storagePercent >= 80 ? 'bg-amber-400' : 'bg-teal-500'"
+            :class="storagePercent >= 80 ? 'bg-amber-400' : 'bg-[#FF6600]'"
             :style="{ width: storagePercent + '%' }"
           />
         </div>
@@ -110,12 +110,12 @@
       >
         <!-- Breadcrumb -->
         <div class="flex items-center gap-1 text-xs text-gray-500 min-w-0 flex-1">
-          <FeatherIcon name="folder" class="h-3.5 w-3.5 text-teal-500 shrink-0" />
+          <FeatherIcon name="folder" class="h-3.5 w-3.5 text-[#FF6600] shrink-0" />
           <span v-for="(crumb, i) in breadcrumb" :key="i" class="flex items-center gap-1">
             <span v-if="i > 0" class="text-gray-300">/</span>
             <button
               @click="crumb.folderId && (activeFolder = crumb.folderId)"
-              class="hover:text-teal-600 transition-colors"
+              class="hover:text-[#FF6600] transition-colors"
               :class="i === breadcrumb.length - 1 ? 'font-semibold text-gray-800' : ''"
             >
               {{ crumb.label }}
@@ -129,7 +129,7 @@
             v-model="searchQuery"
             type="text"
             :placeholder="__('Search documents, OCR text...')"
-            class="w-full pl-8 pr-3 py-1.5 bg-gray-100 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+            class="w-full pl-8 pr-3 py-1.5 bg-gray-100 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-[#FF6600]"
           />
           <FeatherIcon
             name="search"
@@ -146,7 +146,7 @@
             class="px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5"
             :class="
               activeView === v.id
-                ? 'bg-teal-600 text-white'
+                ? 'bg-[#FF6600] text-white'
                 : 'bg-white text-gray-500 hover:bg-gray-50'
             "
           >
@@ -168,8 +168,8 @@
             class="rounded-full px-3 py-1 text-[11px] font-semibold transition-colors border"
             :class="
               activeTypeFilters.includes(f.id)
-                ? 'bg-teal-600 text-white border-teal-600'
-                : 'bg-white text-gray-500 border-gray-200 hover:border-teal-300'
+                ? 'bg-[#FF6600] text-white border-[#FF6600]'
+                : 'bg-white text-gray-500 border-gray-200 hover:border-[#FFB380]'
             "
           >
             {{ f.label }}
@@ -179,7 +179,7 @@
           <button
             @click="sortBy = 'name'"
             :class="
-              sortBy === 'name' ? 'text-teal-600 font-semibold' : 'hover:text-gray-700'
+              sortBy === 'name' ? 'text-[#FF6600] font-semibold' : 'hover:text-gray-700'
             "
           >
             Name
@@ -187,7 +187,7 @@
           <button
             @click="sortBy = 'date'"
             :class="
-              sortBy === 'date' ? 'text-teal-600 font-semibold' : 'hover:text-gray-700'
+              sortBy === 'date' ? 'text-[#FF6600] font-semibold' : 'hover:text-gray-700'
             "
           >
             Date
@@ -195,7 +195,7 @@
           <button
             @click="sortBy = 'size'"
             :class="
-              sortBy === 'size' ? 'text-teal-600 font-semibold' : 'hover:text-gray-700'
+              sortBy === 'size' ? 'text-[#FF6600] font-semibold' : 'hover:text-gray-700'
             "
           >
             Size
@@ -237,7 +237,7 @@
                 :key="doc.id"
                 @click="selectedDoc = doc"
                 class="cursor-pointer hover:bg-gray-50 transition-colors"
-                :class="selectedDoc?.id === doc.id ? 'bg-teal-50' : ''"
+                :class="selectedDoc?.id === doc.id ? 'bg-[#FFF8F2]' : ''"
               >
                 <td class="px-4 py-3" @click.stop>
                   <input type="checkbox" v-model="doc.selected" class="rounded" />
@@ -293,7 +293,7 @@
                 <td class="px-4 py-3 text-center">
                   <span
                     v-if="doc.ai_class"
-                    class="text-[10px] text-teal-600 font-semibold"
+                    class="text-[10px] text-[#FF6600] font-semibold"
                     >{{ doc.ai_class }}</span
                   >
                   <span v-else class="text-[10px] text-gray-300">—</span>
@@ -324,19 +324,19 @@
                   <div class="flex items-center justify-center gap-1">
                     <button
                       @click="previewDoc(doc)"
-                      class="p-1 rounded hover:bg-teal-100 text-gray-400 hover:text-teal-600 transition-colors"
+                      class="p-1 rounded hover:bg-[#FFF0E6] text-gray-400 hover:text-[#FF6600] transition-colors"
                     >
                       <FeatherIcon name="eye" class="h-3.5 w-3.5" />
                     </button>
                     <button
                       @click="shareDoc(doc)"
-                      class="p-1 rounded hover:bg-teal-100 text-gray-400 hover:text-teal-600 transition-colors"
+                      class="p-1 rounded hover:bg-[#FFF0E6] text-gray-400 hover:text-[#FF6600] transition-colors"
                     >
                       <FeatherIcon name="share-2" class="h-3.5 w-3.5" />
                     </button>
                     <button
                       @click="downloadDoc(doc)"
-                      class="p-1 rounded hover:bg-teal-100 text-gray-400 hover:text-teal-600 transition-colors"
+                      class="p-1 rounded hover:bg-[#FFF0E6] text-gray-400 hover:text-[#FF6600] transition-colors"
                     >
                       <FeatherIcon name="download" class="h-3.5 w-3.5" />
                     </button>
@@ -363,12 +363,12 @@
               >{{ selectedCount }} selected</span
             >
             <button
-              class="text-xs text-teal-600 font-semibold hover:underline flex items-center gap-1"
+              class="text-xs text-[#FF6600] font-semibold hover:underline flex items-center gap-1"
             >
               <FeatherIcon name="download" class="h-3.5 w-3.5" />Download ZIP
             </button>
             <button
-              class="text-xs text-teal-600 font-semibold hover:underline flex items-center gap-1"
+              class="text-xs text-[#FF6600] font-semibold hover:underline flex items-center gap-1"
             >
               <FeatherIcon name="tag" class="h-3.5 w-3.5" />Bulk Tag
             </button>
@@ -424,15 +424,15 @@
               <div class="absolute top-2 right-2 flex gap-1">
                 <button
                   @click.stop="downloadDoc(selectedDoc)"
-                  class="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-teal-50 transition-colors shadow-sm"
+                  class="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-[#FFF8F2] transition-colors shadow-sm"
                 >
-                  <FeatherIcon name="download" class="h-3.5 w-3.5 text-teal-600" />
+                  <FeatherIcon name="download" class="h-3.5 w-3.5 text-[#FF6600]" />
                 </button>
                 <button
                   @click.stop="shareDoc(selectedDoc)"
-                  class="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-teal-50 transition-colors shadow-sm"
+                  class="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center hover:bg-[#FFF8F2] transition-colors shadow-sm"
                 >
-                  <FeatherIcon name="share-2" class="h-3.5 w-3.5 text-teal-600" />
+                  <FeatherIcon name="share-2" class="h-3.5 w-3.5 text-[#FF6600]" />
                 </button>
               </div>
             </div>
@@ -446,7 +446,7 @@
                 class="flex-1 py-2 text-[10px] font-semibold transition-colors border-b-2"
                 :class="
                   panelTab === t.id
-                    ? 'border-teal-600 text-teal-600'
+                    ? 'border-[#FF6600] text-[#FF6600]'
                     : 'border-transparent text-gray-400 hover:text-gray-600'
                 "
               >
@@ -486,11 +486,11 @@
                   <span
                     v-for="tag in selectedDoc.tags"
                     :key="tag"
-                    class="rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-[10px] px-2.5 py-0.5 font-medium"
+                    class="rounded-full bg-[#FFF8F2] border border-[#FFD9B3] text-[#CC5200] text-[10px] px-2.5 py-0.5 font-medium"
                     >{{ tag }}</span
                   >
                   <button
-                    class="rounded-full border border-dashed border-gray-300 text-gray-400 text-[10px] px-2 py-0.5 hover:border-teal-400 hover:text-teal-600 transition-colors"
+                    class="rounded-full border border-dashed border-gray-300 text-gray-400 text-[10px] px-2 py-0.5 hover:border-[#FF8533] hover:text-[#FF6600] transition-colors"
                   >
                     + Add
                   </button>
@@ -547,23 +547,23 @@
               <!-- AI Classification -->
               <div
                 v-if="selectedDoc.ai_class"
-                class="rounded-lg bg-teal-50 border border-teal-200 p-3"
+                class="rounded-lg bg-[#FFF8F2] border border-[#FFD9B3] p-3"
               >
                 <div class="flex items-center gap-2 mb-1.5">
-                  <FeatherIcon name="cpu" class="h-3.5 w-3.5 text-teal-600" />
+                  <FeatherIcon name="cpu" class="h-3.5 w-3.5 text-[#FF6600]" />
                   <span
-                    class="text-[10px] font-bold text-teal-700 uppercase tracking-wide"
+                    class="text-[10px] font-bold text-[#CC5200] uppercase tracking-wide"
                     >AI Classification</span
                   >
                 </div>
-                <div class="text-xs font-bold text-teal-800">
+                <div class="text-xs font-bold text-[#993D00]">
                   {{ selectedDoc.ai_class }}
                 </div>
-                <div class="text-[10px] text-teal-600 mt-0.5">
+                <div class="text-[10px] text-[#FF6600] mt-0.5">
                   Confidence: {{ selectedDoc.ai_conf }}% ·
-                  <button class="underline hover:text-teal-800">Override</button>
+                  <button class="underline hover:text-[#993D00]">Override</button>
                 </div>
-                <div class="text-[10px] text-teal-500 mt-1">
+                <div class="text-[10px] text-[#FF6600] mt-1">
                   Suggested folder: {{ selectedDoc.ai_folder }}
                 </div>
               </div>
@@ -619,9 +619,40 @@
                     selectedDoc.ocr = 'Processing';
                     setTimeout(() => (selectedDoc.ocr = 'Done'), 1500);
                   "
-                  class="mt-3 text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-teal-700 transition-colors"
+                  class="mt-3 text-xs bg-[#FF6600] text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-[#CC5200] transition-colors"
                 >
                   Run OCR
+                </button>
+              </div>
+            </div>
+
+            <!-- Comments tab -->
+            <div v-if="panelTab === 'comments'" class="p-4 flex flex-col flex-1 min-h-0">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[10px] font-semibold text-gray-700 uppercase tracking-wide">{{ __("Comments & Annotations") }}</span>
+                <span class="text-[9px] text-gray-400">{{ docComments.length }} comments</span>
+              </div>
+              <div class="flex-1 space-y-3 overflow-y-auto min-h-0 mb-3">
+                <div v-for="cmt in docComments" :key="cmt.id" class="flex gap-2.5">
+                  <div class="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold text-white" :class="cmt.bg">{{ cmt.user[0] }}</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-[10px] font-bold text-gray-700">{{ cmt.user }}</span>
+                      <span class="text-[9px] text-gray-400">{{ cmt.time }}</span>
+                    </div>
+                    <p class="text-[10px] text-gray-600 leading-relaxed">{{ cmt.text }}</p>
+                    <div v-if="cmt.annotation" class="mt-1.5 flex items-center gap-1.5 text-[9px] text-[#006699] bg-[#E6F4FA] rounded-lg px-2 py-1 inline-flex">
+                      <FeatherIcon name="map-pin" class="h-3 w-3" />
+                      <span>{{ cmt.annotation }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-gray-100 pt-3 flex gap-2">
+                <input v-model="newComment" type="text" :placeholder="__('Add a comment...')" class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#FF6600]"
+                  @keyup.enter="addComment" />
+                <button @click="addComment" :disabled="!newComment.trim()" class="shrink-0 rounded-lg bg-[#FF6600] px-3 py-2 text-xs font-semibold text-white hover:bg-[#CC5200] disabled:opacity-40 transition-colors">
+                  <FeatherIcon name="send" class="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -635,7 +666,7 @@
                   class="flex items-center gap-3 p-3 rounded-lg border"
                   :class="
                     v.v === selectedDoc.version
-                      ? 'bg-teal-50 border-teal-200'
+                      ? 'bg-[#FFF8F2] border-[#FFD9B3]'
                       : 'bg-white border-gray-200'
                   "
                 >
@@ -643,7 +674,7 @@
                     class="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
                     :class="
                       v.v === selectedDoc.version
-                        ? 'bg-teal-600 text-white'
+                        ? 'bg-[#FF6600] text-white'
                         : 'bg-gray-100 text-gray-500'
                     "
                   >
@@ -658,12 +689,12 @@
                   <div class="flex items-center gap-1 shrink-0">
                     <span
                       v-if="v.v === selectedDoc.version"
-                      class="text-[9px] bg-teal-100 text-teal-700 px-1.5 rounded font-bold"
+                      class="text-[9px] bg-[#FFF0E6] text-[#CC5200] px-1.5 rounded font-bold"
                       >Active</span
                     >
                     <button
                       v-else
-                      class="text-[9px] text-teal-600 hover:underline font-semibold"
+                      class="text-[9px] text-[#FF6600] hover:underline font-semibold"
                     >
                       Restore
                     </button>
@@ -694,6 +725,122 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── APPROVAL WORKFLOWS ── -->
+      <div v-if="activeView === 'approvals'" class="flex-1 flex flex-col overflow-hidden">
+        <div class="bg-white border-b border-gray-200 px-5 py-3 shrink-0 flex items-center gap-3">
+          <h3 class="text-sm font-semibold text-gray-800">{{ __("Document Approval Queue") }}</h3>
+          <span class="text-[11px] text-gray-400">{{ approvalQueue.length }} pending</span>
+          <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 ml-auto">
+            <button v-for="s in ['All','Pending','Approved','Rejected']" :key="s" @click="approvalFilter = s"
+              class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+              :class="approvalFilter===s ? 'bg-white text-[#CC5200] shadow-sm' : 'text-gray-500'">
+              {{ s }}
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5 space-y-3">
+          <div v-for="a in filteredApprovals" :key="a.id"
+            class="bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition-all"
+            :class="a.status==='Pending' ? 'border-amber-200' : a.status==='Approved' ? 'border-green-200' : 'border-red-200'">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :class="fileIconBg(a.ext)">
+                  <span class="text-[9px] font-black" :class="fileIconColor(a.ext)">{{ a.ext.toUpperCase() }}</span>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-gray-800">{{ a.name }}</h4>
+                  <p class="text-[10px] text-gray-400">{{ a.customer }} · {{ a.docType }} · {{ a.uploaded }}</p>
+                </div>
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-[9px] font-bold shrink-0"
+                :class="a.status==='Approved' ? 'bg-green-100 text-green-700' : a.status==='Rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'">
+                {{ a.status }}
+              </span>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 mb-3">
+              <p class="text-[10px] text-gray-500 mb-2">
+                <span class="font-semibold text-gray-700">{{ __("Approval Chain:") }}</span>
+                <span v-for="(step, i) in a.approvers" :key="step.name" class="inline-flex items-center gap-1">
+                  <span v-if="i>0" class="text-gray-300 mx-0.5">→</span>
+                  <span :class="step.done ? 'text-green-600 font-semibold' : step.current ? 'text-[#CC5200] font-bold' : 'text-gray-400'">
+                    {{ step.name }}
+                    <span v-if="step.done" class="text-[9px] text-green-500">✓</span>
+                  </span>
+                </span>
+              </p>
+            </div>
+            <div v-if="a.status==='Pending'" class="flex items-center gap-2">
+              <button @click="approveDoc(a)" class="flex items-center gap-1.5 rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-green-700 transition-colors">
+                <FeatherIcon name="check-circle" class="h-3 w-3" />{{ __("Approve") }}
+              </button>
+              <button @click="rejectDoc(a)" class="flex items-center gap-1.5 rounded-lg border border-red-300 text-red-600 px-3 py-1.5 text-xs font-semibold hover:bg-red-50 transition-colors">
+                <FeatherIcon name="x-circle" class="h-3 w-3" />{{ __("Reject") }}
+              </button>
+              <button @click="previewDoc(a)" class="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-500 px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 transition-colors">
+                <FeatherIcon name="eye" class="h-3 w-3" />{{ __("Review") }}
+              </button>
+            </div>
+            <div v-else class="text-[10px] text-gray-400">
+              {{ a.status==='Approved' ? '✓ Approved by ' + (a.approvedBy || 'System') + ' · ' + (a.approvedAt || '') : '✗ Rejected · ' + (a.rejectReason || '') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MOBILE DOCUMENT CAPTURE ── -->
+      <div v-if="activeView === 'capture'" class="flex-1 overflow-y-auto p-5 flex flex-col items-center justify-center">
+        <div class="w-full max-w-md space-y-5">
+          <div class="text-center mb-2">
+            <div class="w-14 h-14 rounded-2xl bg-[#FFF0E6] flex items-center justify-center mx-auto mb-3">
+              <FeatherIcon name="camera" class="h-7 w-7 text-[#FF6600]" />
+            </div>
+            <h3 class="text-sm font-bold text-gray-800">{{ __("Mobile Document Capture") }}</h3>
+            <p class="text-xs text-gray-400 mt-1">{{ __("Capture documents directly from your mobile camera") }}</p>
+          </div>
+
+          <!-- Simulated Camera Viewfinder -->
+          <div class="bg-gray-900 rounded-2xl overflow-hidden border-4 border-gray-300 relative aspect-[3/4] max-h-[420px] mx-auto w-full">
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="w-4/5 h-3/5 border-2 border-dashed border-[#FF8533]/60 rounded-xl flex flex-col items-center justify-center">
+                <FeatherIcon name="maximize" class="h-10 w-10 text-white/30 mb-2" />
+                <p class="text-[10px] text-white/40 text-center px-4">{{ __("Position document within frame") }}</p>
+              </div>
+            </div>
+            <!-- Corner markers -->
+            <div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-[#FF8533] rounded-tl-lg" />
+            <div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-[#FF8533] rounded-tr-lg" />
+            <div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-[#FF8533] rounded-bl-lg" />
+            <div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-[#FF8533] rounded-br-lg" />
+            <!-- Flash -->
+            <div class="absolute top-3 right-3 flex gap-1.5">
+              <button class="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center"><FeatherIcon name="zap" class="h-3.5 w-3.5 text-white/60" /></button>
+            </div>
+          </div>
+
+          <!-- Capture button -->
+          <div class="flex justify-center">
+            <button @click="simulateCapture" class="w-16 h-16 rounded-full border-4 border-white bg-[#FF6600] shadow-lg hover:bg-[#CC5200] transition-colors flex items-center justify-center">
+              <div class="w-12 h-12 rounded-full border-2 border-white" />
+            </button>
+          </div>
+
+          <!-- Captured items -->
+          <div v-if="capturedDocs.length" class="space-y-2">
+            <p class="text-xs font-semibold text-gray-600">{{ __("Captured Documents") }} ({{ capturedDocs.length }})</p>
+            <div v-for="cd in capturedDocs" :key="cd.id" class="flex items-center gap-3 p-3 rounded-lg bg-white border border-gray-200">
+              <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                <FeatherIcon name="image" class="h-5 w-5 text-gray-400" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-gray-800">{{ cd.name }}</p>
+                <p class="text-[10px] text-gray-400">{{ cd.size }} · OCR: <span :class="cd.ocr === 'Done' ? 'text-green-600' : 'text-amber-500'">{{ cd.ocr }}</span></p>
+              </div>
+              <button @click="addCapturedToLibrary(cd)" class="text-[10px] text-[#FF6600] font-semibold hover:underline shrink-0">{{ __("Add to Library") }}</button>
             </div>
           </div>
         </div>
@@ -733,7 +880,7 @@
                     class="font-bold shrink-0 ml-2"
                     :class="
                       c.pct >= 80
-                        ? 'text-teal-600'
+                        ? 'text-[#FF6600]'
                         : c.pct >= 60
                         ? 'text-amber-600'
                         : 'text-red-500'
@@ -746,7 +893,7 @@
                     class="h-full rounded-full transition-all"
                     :class="
                       c.pct >= 80
-                        ? 'bg-teal-500'
+                        ? 'bg-[#FF6600]'
                         : c.pct >= 60
                         ? 'bg-amber-400'
                         : 'bg-red-400'
@@ -770,7 +917,7 @@
               <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wide">
                 {{ __("Expiring Documents") }}
               </h4>
-              <button class="text-[10px] text-teal-600 font-semibold hover:underline">
+              <button class="text-[10px] text-[#FF6600] font-semibold hover:underline">
                 {{ __("Send All Reminders") }}
               </button>
             </div>
@@ -803,7 +950,7 @@
                   >
                     {{ ex.days }}d
                   </div>
-                  <button class="text-[9px] text-teal-600 hover:underline">Remind</button>
+                  <button class="text-[9px] text-[#FF6600] hover:underline">Remind</button>
                 </div>
               </div>
             </div>
@@ -824,7 +971,7 @@
               <div class="text-2xl font-black text-red-500">{{ mt.count }}</div>
               <div class="text-xs text-gray-600 mt-1 font-medium">{{ mt.type }}</div>
               <button
-                class="mt-2 text-[10px] text-teal-600 hover:underline font-semibold"
+                class="mt-2 text-[10px] text-[#FF6600] hover:underline font-semibold"
               >
                 Request All
               </button>
@@ -843,7 +990,7 @@
               {{ __("System Audit Log") }}
             </h4>
             <button
-              class="text-xs text-teal-600 font-semibold flex items-center gap-1 hover:underline"
+              class="text-xs text-[#FF6600] font-semibold flex items-center gap-1 hover:underline"
             >
               <FeatherIcon name="download" class="h-3.5 w-3.5" />{{ __("Export CSV") }}
             </button>
@@ -867,7 +1014,7 @@
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-2">
                     <div
-                      class="w-5 h-5 rounded-full bg-teal-600 text-white flex items-center justify-center text-[9px] font-black"
+                      class="w-5 h-5 rounded-full bg-[#FF6600] text-white flex items-center justify-center text-[9px] font-black"
                     >
                       {{ log.user[0] }}
                     </div>
@@ -908,13 +1055,13 @@
           <div
             v-for="tpl in templates"
             :key="tpl.id"
-            class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:border-teal-300 transition-colors"
+            class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 hover:border-[#FFB380] transition-colors"
           >
             <div class="flex items-start justify-between mb-3">
               <div
-                class="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center"
+                class="w-10 h-10 rounded-xl bg-[#FFF0E6] flex items-center justify-center"
               >
-                <FeatherIcon name="file-text" class="h-5 w-5 text-teal-600" />
+                <FeatherIcon name="file-text" class="h-5 w-5 text-[#FF6600]" />
               </div>
               <span
                 class="text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-semibold"
@@ -927,19 +1074,19 @@
               <span
                 v-for="field in tpl.merge_fields"
                 :key="field"
-                class="text-[9px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded font-mono"
+                class="text-[9px] bg-[#FFF8F2] text-[#CC5200] px-1.5 py-0.5 rounded font-mono"
                 v-text="'{{' + field + '}}'"
               ></span>
             </div>
             <div class="flex gap-2">
               <button
                 @click="generateDoc(tpl)"
-                class="flex-1 rounded-lg bg-teal-600 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
+                class="flex-1 rounded-lg bg-[#FF6600] py-1.5 text-xs font-semibold text-white hover:bg-[#CC5200] transition-colors"
               >
                 {{ __("Generate") }}
               </button>
               <button
-                class="px-3 rounded-lg border border-gray-200 py-1.5 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+                class="px-3 rounded-lg border border-[#006699] py-1.5 text-xs text-[#006699] hover:bg-[#E6F4FA] transition-colors"
               >
                 {{ __("Edit") }}
               </button>
@@ -947,7 +1094,7 @@
           </div>
           <!-- New template -->
           <div
-            class="rounded-xl border-2 border-dashed border-gray-300 p-5 flex flex-col items-center justify-center text-center hover:border-teal-400 transition-colors cursor-pointer min-h-[180px]"
+            class="rounded-xl border-2 border-dashed border-gray-300 p-5 flex flex-col items-center justify-center text-center hover:border-[#FF8533] transition-colors cursor-pointer min-h-[180px]"
           >
             <FeatherIcon name="plus-circle" class="h-8 w-8 text-gray-300 mb-2" />
             <p class="text-sm font-semibold text-gray-500">{{ __("New Template") }}</p>
@@ -975,10 +1122,10 @@
         </div>
 
         <div
-          class="border-2 border-dashed border-teal-300 rounded-xl p-8 text-center cursor-pointer hover:border-teal-500 bg-teal-50/30 transition-colors"
+          class="border-2 border-dashed border-[#FFB380] rounded-xl p-8 text-center cursor-pointer hover:border-[#FF6600] bg-[#FFF8F2]/30 transition-colors"
           @click="triggerFakeUploads"
         >
-          <FeatherIcon name="upload-cloud" class="h-10 w-10 text-teal-300 mx-auto mb-3" />
+          <FeatherIcon name="upload-cloud" class="h-10 w-10 text-[#FFB380] mx-auto mb-3" />
           <p class="text-sm font-semibold text-gray-700">
             {{ __("Drop files here or click") }}
           </p>
@@ -991,19 +1138,19 @@
             :key="u.name"
             class="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200"
           >
-            <FeatherIcon name="file" class="h-4 w-4 text-teal-500 shrink-0" />
+            <FeatherIcon name="file" class="h-4 w-4 text-[#FF6600] shrink-0" />
             <div class="flex-1 min-w-0">
               <div class="text-xs font-semibold text-gray-800 truncate">{{ u.name }}</div>
               <div class="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  class="h-full bg-teal-500 rounded-full transition-all duration-200"
+                  class="h-full bg-[#FF6600] rounded-full transition-all duration-200"
                   :style="{ width: u.progress + '%' }"
                 />
               </div>
             </div>
             <span
               class="text-[10px] font-bold shrink-0"
-              :class="u.progress === 100 ? 'text-green-600' : 'text-teal-600'"
+              :class="u.progress === 100 ? 'text-green-600' : 'text-[#FF6600]'"
               >{{ u.progress === 100 ? "✓ Done" : u.progress + "%" }}</span
             >
           </div>
@@ -1042,13 +1189,13 @@
         <div class="mt-5 flex gap-2">
           <button
             @click="showUpload = false"
-            class="flex-1 border border-gray-200 rounded-lg py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            class="flex-1 border border-[#006699] rounded-lg py-2 text-sm font-semibold text-[#006699] hover:bg-[#E6F4FA]"
           >
             {{ __("Cancel") }}
           </button>
           <button
             @click="confirmUpload"
-            class="flex-1 bg-teal-600 rounded-lg py-2 text-sm font-semibold text-white hover:bg-teal-700 transition-colors"
+            class="flex-1 bg-[#FF6600] rounded-lg py-2 text-sm font-semibold text-white hover:bg-[#CC5200] transition-colors"
           >
             {{ __("Upload & Process") }}
           </button>
@@ -1111,21 +1258,21 @@
         </div>
         <div
           v-if="shareLink"
-          class="mt-4 flex items-center gap-2 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2"
+          class="mt-4 flex items-center gap-2 bg-[#FFF8F2] border border-[#FFD9B3] rounded-lg px-3 py-2"
         >
-          <span class="text-[10px] font-mono text-teal-700 flex-1 truncate">{{
+          <span class="text-[10px] font-mono text-[#CC5200] flex-1 truncate">{{
             shareLink
           }}</span>
           <button
             @click="copyLink"
-            class="shrink-0 text-[10px] text-teal-700 font-bold hover:underline"
+            class="shrink-0 text-[10px] text-[#CC5200] font-bold hover:underline"
           >
             {{ copied ? "✓ Copied" : "Copy" }}
           </button>
         </div>
         <button
           @click="generateLink"
-          class="mt-4 w-full bg-teal-600 rounded-lg py-2 text-sm font-semibold text-white hover:bg-teal-700 transition-colors"
+          class="mt-4 w-full bg-[#FF6600] rounded-lg py-2 text-sm font-semibold text-white hover:bg-[#CC5200] transition-colors"
         >
           {{ __("Generate Link") }}
         </button>
@@ -1144,10 +1291,10 @@
           <FeatherIcon name="file-text" class="h-4 w-4 text-gray-400 shrink-0" />
           <span class="text-sm font-semibold text-white truncate flex-1">{{ selectedDoc?.name }}</span>
           <div class="flex items-center gap-2 shrink-0">
-            <button @click="downloadDoc(selectedDoc)" class="text-gray-400 hover:text-white transition-colors">
+            <button @click="downloadDoc(selectedDoc)" class="text-[#E6F4FA] hover:text-white transition-colors">
               <FeatherIcon name="download" class="h-4 w-4" />
             </button>
-            <button @click="showPreviewModal = false" class="text-gray-400 hover:text-white transition-colors">
+            <button @click="showPreviewModal = false" class="text-[#E6F4FA] hover:text-white transition-colors">
               <FeatherIcon name="x" class="h-4 w-4" />
             </button>
           </div>
@@ -1189,9 +1336,9 @@
               <template v-if="selectedDoc?.doc_type === 'Agreement'">
                 <!-- Page 1 -->
                 <div v-if="previewPage === 1">
-                  <div class="flex items-start justify-between mb-6 pb-4 border-b-2 border-teal-600">
+                  <div class="flex items-start justify-between mb-6 pb-4 border-b-2 border-[#FF6600]">
                     <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 rounded-lg bg-teal-600 flex items-center justify-center shrink-0"><span class="text-white text-xs font-black">BS</span></div>
+                      <div class="w-10 h-10 rounded-lg bg-[#FF6600] flex items-center justify-center shrink-0"><span class="text-white text-xs font-black">BS</span></div>
                       <div>
                         <div class="text-sm font-black text-gray-800 tracking-wide">BANK SUMMON</div>
                         <div class="text-[9px] text-gray-400">Jl. Sudirman Kav. 45, Jakarta 10220</div>
@@ -1221,7 +1368,7 @@
                       <p class="mb-2">1.1 BANK menyetujui Fasilitas Kredit Modal Kerja dengan ketentuan:</p>
                       <div class="ml-3 rounded-lg border border-gray-200 overflow-hidden">
                         <table class="w-full text-[10px]">
-                          <tr class="bg-teal-50 border-b border-gray-100"><td class="px-3 py-1.5 text-gray-500 w-2/5">Jenis Fasilitas</td><td class="px-3 py-1.5 font-bold text-gray-800">Kredit Modal Kerja (KMK)</td></tr>
+                          <tr class="bg-[#FFF8F2] border-b border-gray-100"><td class="px-3 py-1.5 text-gray-500 w-2/5">Jenis Fasilitas</td><td class="px-3 py-1.5 font-bold text-gray-800">Kredit Modal Kerja (KMK)</td></tr>
                           <tr class="border-b border-gray-100"><td class="px-3 py-1.5 text-gray-500">Plafond</td><td class="px-3 py-1.5 font-bold text-gray-800">Rp 5.000.000.000,-</td></tr>
                           <tr class="bg-gray-50 border-b border-gray-100"><td class="px-3 py-1.5 text-gray-500">Suku Bunga</td><td class="px-3 py-1.5 font-bold text-gray-800">10,5% p.a. floating</td></tr>
                           <tr class="border-b border-gray-100"><td class="px-3 py-1.5 text-gray-500">Jangka Waktu</td><td class="px-3 py-1.5 font-bold text-gray-800">36 Bulan</td></tr>
@@ -1299,8 +1446,8 @@
                       <p class="text-[10px] font-bold text-gray-800">Dewi Kusuma</p>
                       <p class="text-[9px] text-gray-500">Kepala Divisi Kredit Korporat</p>
                       <div class="mt-4 flex justify-center">
-                        <div class="w-16 h-16 rounded-full border-2 border-teal-400 flex items-center justify-center">
-                          <span class="text-[8px] text-teal-600 font-bold text-center leading-tight">e-SIGN<br/>✓ VALID</span>
+                        <div class="w-16 h-16 rounded-full border-2 border-[#FF8533] flex items-center justify-center">
+                          <span class="text-[8px] text-[#FF6600] font-bold text-center leading-tight">e-SIGN<br/>✓ VALID</span>
                         </div>
                       </div>
                       <p class="text-[9px] text-gray-400 mt-1.5">24 Mei 2026 · 10:15 WIB</p>
@@ -1311,8 +1458,8 @@
                       <p class="text-[10px] font-bold text-gray-800">Budi Santoso</p>
                       <p class="text-[9px] text-gray-500">Direktur Utama</p>
                       <div class="mt-4 flex justify-center">
-                        <div class="w-16 h-16 rounded-full border-2 border-teal-400 flex items-center justify-center">
-                          <span class="text-[8px] text-teal-600 font-bold text-center leading-tight">e-SIGN<br/>✓ VALID</span>
+                        <div class="w-16 h-16 rounded-full border-2 border-[#FF8533] flex items-center justify-center">
+                          <span class="text-[8px] text-[#FF6600] font-bold text-center leading-tight">e-SIGN<br/>✓ VALID</span>
                         </div>
                       </div>
                       <p class="text-[9px] text-gray-400 mt-1.5">24 Mei 2026 · 14:32 WIB</p>
@@ -1324,8 +1471,8 @@
                     <p class="text-[9px] text-gray-500">Notaris dan PPAT Jakarta Selatan · SK AHU-123/KN.01.2024</p>
                   </div>
                   <div class="flex justify-center mt-6">
-                    <div class="w-24 h-24 rounded-full border-4 border-dashed border-teal-300 flex items-center justify-center opacity-30">
-                      <span class="text-[8px] text-teal-700 font-bold text-center">BANK<br/>SUMMON</span>
+                    <div class="w-24 h-24 rounded-full border-4 border-dashed border-[#FFB380] flex items-center justify-center opacity-30">
+                      <span class="text-[8px] text-[#CC5200] font-bold text-center">BANK<br/>SUMMON</span>
                     </div>
                   </div>
                 </div>
@@ -1335,7 +1482,7 @@
               <template v-else-if="selectedDoc?.doc_type === 'Financial'">
                 <!-- Page 1: P&L -->
                 <div v-if="previewPage === 1">
-                  <div class="flex items-start justify-between mb-5 pb-4 border-b-2 border-blue-600">
+                  <div class="flex items-start justify-between mb-5 pb-4 border-b-2 border-[#006699]">
                     <div>
                       <p class="text-sm font-black text-gray-800">PT MAJU BERSAMA</p>
                       <p class="text-[9px] text-gray-500">NPWP: 01.234.567.8-001.000</p>
@@ -1347,9 +1494,9 @@
                     </div>
                   </div>
                   <div class="grid grid-cols-3 gap-2 mb-5">
-                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
-                      <p class="text-sm font-black text-blue-700">Rp 28,4M</p>
-                      <p class="text-[9px] text-blue-600">Revenue</p>
+                    <div class="bg-[#F0F8FC] border border-[#B3DDEF] rounded-lg p-2 text-center">
+                      <p class="text-sm font-black text-[#004D73]">Rp 28,4M</p>
+                      <p class="text-[9px] text-[#006699]">Revenue</p>
                       <p class="text-[8px] text-green-600 font-semibold">↑ 12% YoY</p>
                     </div>
                     <div class="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
@@ -1357,9 +1504,9 @@
                       <p class="text-[9px] text-green-600">Net Profit</p>
                       <p class="text-[8px] text-green-600 font-semibold">↑ 20% YoY</p>
                     </div>
-                    <div class="bg-teal-50 border border-teal-200 rounded-lg p-2 text-center">
-                      <p class="text-sm font-black text-teal-700">Rp 52,1M</p>
-                      <p class="text-[9px] text-teal-600">Total Assets</p>
+                    <div class="bg-[#FFF8F2] border border-[#FFD9B3] rounded-lg p-2 text-center">
+                      <p class="text-sm font-black text-[#CC5200]">Rp 52,1M</p>
+                      <p class="text-[9px] text-[#FF6600]">Total Assets</p>
                       <p class="text-[8px] text-green-600 font-semibold">↑ 5% YoY</p>
                     </div>
                   </div>
@@ -1371,9 +1518,9 @@
                       <tr class="bg-gray-50 border-b border-gray-100"><td class="px-3 py-1.5 text-gray-600">Beban Pokok</td><td class="px-3 py-1.5 text-right">(18.120)</td><td class="px-3 py-1.5 text-right text-gray-400">(16.504)</td><td class="px-3 py-1.5 text-right text-red-400">+9,8%</td></tr>
                       <tr class="border-b border-gray-100"><td class="px-3 py-1.5 font-semibold text-gray-800">Laba Bruto</td><td class="px-3 py-1.5 text-right font-bold">10.312</td><td class="px-3 py-1.5 text-right font-bold text-gray-400">8.886</td><td class="px-3 py-1.5 text-right text-green-600 font-semibold">+16,1%</td></tr>
                       <tr class="bg-gray-50 border-b border-gray-100"><td class="px-3 py-1.5 text-gray-600">Beban Operasional</td><td class="px-3 py-1.5 text-right">(4.890)</td><td class="px-3 py-1.5 text-right text-gray-400">(4.210)</td><td class="px-3 py-1.5 text-right text-red-400">+16,2%</td></tr>
-                      <tr class="border-b border-gray-100"><td class="px-3 py-1.5 font-semibold text-gray-800">EBITDA</td><td class="px-3 py-1.5 text-right font-bold text-teal-700">5.422</td><td class="px-3 py-1.5 text-right font-bold text-gray-400">4.676</td><td class="px-3 py-1.5 text-right text-green-600 font-semibold">+16,0%</td></tr>
+                      <tr class="border-b border-gray-100"><td class="px-3 py-1.5 font-semibold text-gray-800">EBITDA</td><td class="px-3 py-1.5 text-right font-bold text-[#CC5200]">5.422</td><td class="px-3 py-1.5 text-right font-bold text-gray-400">4.676</td><td class="px-3 py-1.5 text-right text-green-600 font-semibold">+16,0%</td></tr>
                       <tr class="bg-gray-50 border-b border-gray-100"><td class="px-3 py-1.5 text-gray-600">Beban Bunga &amp; Pajak</td><td class="px-3 py-1.5 text-right">(1.228)</td><td class="px-3 py-1.5 text-right text-gray-400">(1.192)</td><td class="px-3 py-1.5 text-right text-red-400">+3,0%</td></tr>
-                      <tr class="bg-blue-50"><td class="px-3 py-2 font-black text-gray-800">Laba Bersih</td><td class="px-3 py-2 text-right font-black text-blue-700">4.194</td><td class="px-3 py-2 text-right font-black text-gray-500">3.484</td><td class="px-3 py-2 text-right text-green-600 font-bold">+20,4%</td></tr>
+                      <tr class="bg-[#F0F8FC]"><td class="px-3 py-2 font-black text-gray-800">Laba Bersih</td><td class="px-3 py-2 text-right font-black text-[#004D73]">4.194</td><td class="px-3 py-2 text-right font-black text-gray-500">3.484</td><td class="px-3 py-2 text-right text-green-600 font-bold">+20,4%</td></tr>
                     </tbody>
                   </table>
                   <p class="text-[8px] text-gray-400">*dalam juta rupiah</p>
@@ -1391,13 +1538,13 @@
                         <div class="flex justify-between"><span class="text-gray-500">Piutang Usaha</span><span>8.215</span></div>
                         <div class="flex justify-between"><span class="text-gray-500">Persediaan</span><span>6.120</span></div>
                         <div class="flex justify-between"><span class="text-gray-500">Aset Lancar Lain</span><span>1.443</span></div>
-                        <div class="flex justify-between border-t border-gray-200 pt-0.5 font-bold"><span>Total Aset Lancar</span><span class="text-blue-700">20.610</span></div>
+                        <div class="flex justify-between border-t border-gray-200 pt-0.5 font-bold"><span>Total Aset Lancar</span><span class="text-[#004D73]">20.610</span></div>
                       </div>
                       <p class="font-semibold text-gray-700 mb-1">Aset Tidak Lancar</p>
                       <div class="space-y-0.5 ml-2">
                         <div class="flex justify-between"><span class="text-gray-500">Aset Tetap (Net)</span><span>28.320</span></div>
                         <div class="flex justify-between"><span class="text-gray-500">Aset Lain-lain</span><span>3.170</span></div>
-                        <div class="flex justify-between border-t border-gray-200 pt-0.5 font-bold"><span>Total Tidak Lancar</span><span class="text-blue-700">31.490</span></div>
+                        <div class="flex justify-between border-t border-gray-200 pt-0.5 font-bold"><span>Total Tidak Lancar</span><span class="text-[#004D73]">31.490</span></div>
                       </div>
                       <div class="flex justify-between border-t-2 border-gray-300 pt-1 mt-2 font-black"><span>TOTAL ASET</span><span class="text-blue-800">52.100</span></div>
                     </div>
@@ -1477,9 +1624,9 @@
                       <FeatherIcon name="check-circle" class="h-3 w-3 text-green-600" />
                       <span class="text-[10px] font-semibold text-green-700">OCR Verified · 98%</span>
                     </div>
-                    <div class="flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-full px-3 py-1">
-                      <FeatherIcon name="cpu" class="h-3 w-3 text-teal-600" />
-                      <span class="text-[10px] font-semibold text-teal-700">AI: KTP / ID Card</span>
+                    <div class="flex items-center gap-1.5 bg-[#FFF8F2] border border-[#FFD9B3] rounded-full px-3 py-1">
+                      <FeatherIcon name="cpu" class="h-3 w-3 text-[#FF6600]" />
+                      <span class="text-[10px] font-semibold text-[#CC5200]">AI: KTP / ID Card</span>
                     </div>
                     <div class="flex items-center gap-1.5 bg-purple-50 border border-purple-200 rounded-full px-3 py-1">
                       <FeatherIcon name="shield" class="h-3 w-3 text-purple-600" />
@@ -1514,7 +1661,7 @@
                       <p class="text-sm font-black text-gray-800 truncate max-w-[300px]">{{ selectedDoc?.name }}</p>
                       <p class="text-[9px] text-gray-500 mt-0.5">{{ selectedDoc?.customer }} · {{ selectedDoc?.doc_type }}</p>
                     </div>
-                    <span class="text-[9px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded font-semibold shrink-0">v{{ selectedDoc?.version }}</span>
+                    <span class="text-[9px] bg-[#FFF0E6] text-[#CC5200] px-2 py-0.5 rounded font-semibold shrink-0">v{{ selectedDoc?.version }}</span>
                   </div>
                   <div class="space-y-2 mb-6">
                     <div v-for="i in 5" :key="i" class="h-2.5 rounded bg-gray-100" :style="{ width: [80, 100, 75, 95, 65][i-1] + '%' }" />
@@ -1555,7 +1702,7 @@
         v-if="toast"
         class="fixed bottom-5 right-5 z-50 bg-gray-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2"
       >
-        <FeatherIcon name="check-circle" class="h-4 w-4 text-teal-400" />{{ toast }}
+        <FeatherIcon name="check-circle" class="h-4 w-4 text-[#FF8533]" />{{ toast }}
       </div>
     </transition>
   </div>
@@ -1580,7 +1727,7 @@ const FolderNode = defineComponent({
           {
             class: `w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all ${
               props.active === props.node.id
-                ? "bg-teal-50 text-teal-700 font-semibold"
+                ? "bg-[#FFF8F2] text-[#CC5200] font-semibold"
                 : "text-gray-600 hover:bg-gray-50"
             }`,
             onClick: () => {
@@ -1598,7 +1745,7 @@ const FolderNode = defineComponent({
             h(FeatherIcon, {
               name: "folder",
               class: `h-3.5 w-3.5 shrink-0 ${
-                props.active === props.node.id ? "text-teal-500" : "text-gray-400"
+                props.active === props.node.id ? "text-[#FF6600]" : "text-gray-400"
               }`,
             }),
             h("span", { class: "truncate flex-1 text-left" }, props.node.label),
@@ -1890,12 +2037,15 @@ const storagePercent = 76;
 const panelTabs = [
   { id: "info", label: "Info" },
   { id: "ocr", label: "OCR" },
+  { id: "comments", label: "Comments" },
   { id: "versions", label: "Versions" },
   { id: "audit", label: "Audit" },
 ];
 
 const views = [
   { id: "docs", icon: "list", label: "Documents" },
+  { id: "approvals", icon: "check-square", label: "Approvals" },
+  { id: "capture", icon: "camera", label: "Capture" },
   { id: "health", icon: "activity", label: "Health" },
   { id: "audit", icon: "shield", label: "Audit Log" },
   { id: "templates", icon: "layout", label: "Templates" },
@@ -1960,10 +2110,10 @@ const healthKpis = [
   {
     label: "Total Documents",
     value: "247",
-    bg: "bg-teal-100",
+    bg: "bg-[#FFF0E6]",
     icon: "file",
-    iconColor: "text-teal-600",
-    color: "text-teal-600",
+    iconColor: "text-[#FF6600]",
+    color: "text-[#FF6600]",
   },
   {
     label: "OCR Processed",
@@ -2107,6 +2257,95 @@ const templates = [
   },
 ];
 
+// ── Document Approval Queue ──
+const approvalFilter = ref('All')
+const approvalQueue = ref([
+  { id: 1, name: 'Laporan_Keuangan_2024_Audit.xlsx', ext: 'xlsx', docType: 'Financial', customer: 'PT Maju Bersama', uploaded: '23 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: true, current: false }, { name: 'Risk Officer', done: false, current: true }, { name: 'Director', done: false, current: false }] },
+  { id: 2, name: 'SHM_Gudang_Bekasi.pdf', ext: 'pdf', docType: 'Collateral', customer: 'PT Maju Bersama', uploaded: '20 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: false, current: true }, { name: 'Risk Officer', done: false, current: false }] },
+  { id: 3, name: 'Rekening_Koran_BCA_Jan-Jun2026.pdf', ext: 'pdf', docType: 'Financial', customer: 'Budi Santoso', uploaded: '22 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: false, current: true }, { name: 'Credit Head', done: false, current: false }] },
+  { id: 4, name: 'Perjanjian_Kredit_v2.1.docx', ext: 'docx', docType: 'Agreement', customer: 'PT Maju Bersama', uploaded: '24 May 2026', status: 'Approved', approvedBy: 'Dewi Kusuma', approvedAt: '24 May 10:15', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: true }, { name: 'Risk Officer', done: true }, { name: 'Director', done: true }] },
+  { id: 5, name: 'BPKB_Mesin_CNC_Haas.pdf', ext: 'pdf', docType: 'Collateral', customer: 'CV Teknik Jaya', uploaded: '8 May 2026', status: 'Rejected', rejectReason: 'Incomplete — missing appraisal report', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: false, current: false }] },
+])
+
+const filteredApprovals = computed(() => {
+  if (approvalFilter.value === 'All') return approvalQueue.value
+  return approvalQueue.value.filter(a => a.status === approvalFilter.value)
+})
+
+function approveDoc(a) {
+  a.status = 'Approved'
+  a.approvedBy = 'Current User'
+  a.approvedAt = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  showToast(`"${a.name}" approved`)
+}
+
+function rejectDoc(a) {
+  a.status = 'Rejected'
+  a.rejectReason = 'Rejected during review'
+  showToast(`"${a.name}" rejected`)
+}
+
+// ── Document Comments ──
+const newComment = ref('')
+const docComments = ref([
+  { id: 1, user: 'Dewi Kusuma', time: '24 May 11:00', text: 'Please verify the collateral appraisal report matches the market value stated.', bg: 'bg-[#FF6600]', annotation: 'Page 2, Section Collateral' },
+  { id: 2, user: 'Ahmad Fauzi', time: '24 May 11:15', text: 'Verified — appraisal from KJPP certified. Value confirmed at Rp 8.5M.', bg: 'bg-[#006699]' },
+  { id: 3, user: 'Sari Indrawati', time: '24 May 10:30', text: 'LGTM. Recommend approval.', bg: 'bg-purple-500' },
+])
+
+function addComment() {
+  if (!newComment.value.trim()) return
+  docComments.value.push({
+    id: Date.now(),
+    user: 'Current User',
+    time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    text: newComment.value.trim(),
+    bg: 'bg-green-500',
+  })
+  newComment.value = ''
+  showToast('Comment added')
+}
+
+// ── Mobile Capture ──
+const capturedDocs = ref([])
+let captureIdSeq = 1
+
+function simulateCapture() {
+  const docNames = ['KTP_Front.jpg', 'NPWP_Card.jpg', 'Slip_Gaji_May.jpg', 'KK_Family_Card.pdf']
+  const name = docNames[captureIdSeq % docNames.length]
+  capturedDocs.value.unshift({
+    id: captureIdSeq++,
+    name,
+    size: (Math.random() * 2 + 0.3).toFixed(1) + ' MB',
+    ocr: 'Pending',
+  })
+  showToast(`Captured: ${name}`)
+}
+
+function addCapturedToLibrary(cd) {
+  cd.ocr = 'Processing'
+  allDocs.value.unshift({
+    id: Date.now() + Math.random(),
+    name: cd.name,
+    ext: cd.name.split('.').pop(),
+    customer: 'Budi Santoso',
+    doc_type: 'KYC',
+    ocr: 'Processing',
+    ai_class: null,
+    ai_conf: null,
+    ai_folder: null,
+    size: cd.size,
+    version: 1,
+    expiry: null,
+    status: 'Active',
+    uploaded: 'Just now',
+    tags: ['Mobile Capture'],
+    selected: false,
+  })
+  capturedDocs.value = capturedDocs.value.filter(d => d.id !== cd.id)
+  showToast(`"${cd.name}" added to library`)
+}
+
 const customerOptions = [
   "PT Maju Bersama",
   "Budi Santoso",
@@ -2191,7 +2430,7 @@ function fileIconBg(ext) {
   const m = {
     pdf: "bg-red-100",
     xlsx: "bg-green-100",
-    docx: "bg-blue-100",
+    docx: "bg-[#E6F4FA]",
     jpg: "bg-purple-100",
     png: "bg-purple-100",
   };
@@ -2201,7 +2440,7 @@ function fileIconColor(ext) {
   const m = {
     pdf: "text-red-600",
     xlsx: "text-green-700",
-    docx: "text-blue-700",
+    docx: "text-[#004D73]",
     jpg: "text-purple-700",
     png: "text-purple-700",
   };
@@ -2209,8 +2448,8 @@ function fileIconColor(ext) {
 }
 function docTypeBadge(type) {
   const m = {
-    KYC: "bg-teal-100 text-teal-700",
-    Financial: "bg-blue-100 text-blue-700",
+    KYC: "bg-[#FFF0E6] text-[#CC5200]",
+    Financial: "bg-[#E6F4FA] text-[#004D73]",
     Agreement: "bg-purple-100 text-purple-700",
     Collateral: "bg-amber-100 text-amber-700",
     Identity: "bg-green-100 text-green-700",
@@ -2220,7 +2459,7 @@ function docTypeBadge(type) {
 function statusBadge(s) {
   const m = {
     Active: "bg-green-100 text-green-700",
-    Signed: "bg-teal-100 text-teal-700",
+    Signed: "bg-[#FFF0E6] text-[#CC5200]",
     "Pending Approval": "bg-amber-100 text-amber-700",
     Expired: "bg-red-100 text-red-600",
   };
@@ -2239,8 +2478,8 @@ function isExpiringSoon(exp) {
 }
 function auditColor(a) {
   const m = {
-    Download: "bg-blue-500",
-    Approve: "bg-teal-600",
+    Download: "bg-[#006699]",
+    Approve: "bg-[#FF6600]",
     View: "bg-gray-400",
     Upload: "bg-green-500",
     "OCR Process": "bg-purple-500",
@@ -2261,10 +2500,10 @@ function auditIcon(a) {
 }
 function auditActionBadge(a) {
   const m = {
-    Download: "bg-blue-100 text-blue-700",
+    Download: "bg-[#E6F4FA] text-[#004D73]",
     Approve: "bg-green-100 text-green-700",
     View: "bg-gray-100 text-gray-600",
-    Upload: "bg-teal-100 text-teal-700",
+    Upload: "bg-[#FFF0E6] text-[#CC5200]",
     "OCR Process": "bg-purple-100 text-purple-700",
     "Login Attempt": "bg-red-100 text-red-600",
   };
@@ -2380,10 +2619,10 @@ function generateDoc(tpl) {
 
 <style scoped>
 .field-select {
-  @apply w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 bg-white transition-colors;
+  @apply w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF6600] bg-white transition-colors;
 }
 .field-input {
-  @apply w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-teal-500 transition-colors;
+  @apply w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#FF6600] transition-colors;
 }
 .fade-enter-active,
 .fade-leave-active {

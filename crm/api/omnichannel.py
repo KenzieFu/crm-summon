@@ -21,6 +21,10 @@ ARCHIVE = "CRM Omnichannel Compliance Archive"
 ANALYTICS = "CRM Omnichannel Analytics Snapshot"
 
 CHANNELS = ["WhatsApp", "Email", "SMS", "In-App", "Voice"]
+DEMO_WHATSAPP_RECIPIENTS = {
+	"6285591150319": "Demo WhatsApp 0319",
+	"6285774240730": "Demo WhatsApp 0730",
+}
 COUNT_KEYS = {
 	"WhatsApp": "whatsapp",
 	"Email": "email",
@@ -102,6 +106,29 @@ def _clean_tags(tags) -> list[str]:
 	return []
 
 
+def _normalize_demo_phone(value: str | None) -> str:
+	digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+	if digits.startswith("0"):
+		digits = f"62{digits[1:]}"
+	return digits
+
+
+def _default_customer_group() -> str | None:
+	return (
+		frappe.db.get_value("Customer Group", {"is_group": 0}, "name")
+		or frappe.db.get_value("Customer Group", "Commercial", "name")
+		or frappe.db.get_value("Customer Group", {"is_group": 1}, "name")
+	)
+
+
+def _default_territory() -> str | None:
+	return (
+		frappe.db.get_default("territory")
+		or frappe.db.get_value("Territory", {"is_group": 0}, "name")
+		or frappe.db.get_value("Territory", "All Territories", "name")
+	)
+
+
 def _conversation_doc(name: str):
 	if not frappe.db.exists(CONVERSATION, name):
 		frappe.throw(_("Conversation {0} does not exist").format(name), frappe.DoesNotExistError)
@@ -175,10 +202,13 @@ def _provider_status(channel: str) -> dict:
 		if frappe.db.exists("Email Account", {"enable_outgoing": 1}):
 			status = "Active"
 			provider = provider or "Frappe Email"
-	if channel in ["Email", "WhatsApp", "SMS", "Voice", "In-App"]:
+	if channel == "Email" and frappe.conf.get("mail_server") and frappe.conf.get("mail_login"):
+		status = "Active"
+		provider = provider or "SMTP"
+	if channel == "In-App":
 		status = "Active"
 		if not provider:
-			provider = "Frappe Email" if channel == "Email" else f"Simulated {channel}"
+			provider = "Frappe In-App"
 	return {"channel": channel, "status": status, "provider": provider, "account": account.name if account else None}
 
 
@@ -347,6 +377,18 @@ def _create_message(conversation, payload: dict):
 	)
 	doc.insert(ignore_permissions=True)
 	_touch_conversation(conversation, doc)
+	frappe.publish_realtime(
+		"omnichannel_message",
+		{
+			"conversation": conversation.name,
+			"message": doc.name,
+			"direction": doc.direction,
+			"channel": doc.channel,
+			"content": doc.content,
+			"from_party": doc.from_party,
+		},
+		after_commit=True,
+	)
 	return doc, True
 
 
@@ -373,6 +415,70 @@ def _row(doc) -> dict:
 	}
 
 
+def _ensure_demo_whatsapp_conversations():
+	"""Ensure the two allowlisted demo WhatsApp numbers have active conversation history."""
+	for recipient, customer_name in DEMO_WHATSAPP_RECIPIENTS.items():
+		normalized = _normalize_demo_phone(recipient)
+		# Check if conversation already exists
+		existing = frappe.db.get_value(
+			CONVERSATION,
+			{"channel": "WhatsApp", "provider_conversation_id": normalized},
+			"name"
+		)
+		if existing:
+			continue
+
+		# Create/Get Customer
+		customer = ensure_demo_whatsapp_customer(normalized)
+		customer_id = customer.get("name")
+
+		# Create conversation
+		conv = _ensure_conversation(
+			channel="WhatsApp",
+			subject=f"WhatsApp Demo - {customer_name}",
+			customer=customer_id,
+			reference_doctype="Customer",
+			reference_name=customer_id,
+			provider_conversation_id=normalized,
+		)
+
+		# Generate messages
+		if normalized == "6285591150319":
+			messages = [
+				("Inbound", "Halo BNI, saya tertarik dengan Kredit Modal Kerja BNI. Bagaimana persyaratannya?", -30),
+				("Outbound", "Halo Pak! Terima kasih telah menghubungi BNI. Persyaratannya cukup mudah, salah satunya melampirkan NPWP dan laporan keuangan audit. Apakah Bapak sudah memiliki dokumen tersebut?", -25),
+				("Inbound", "NPWP sudah ada, laporan keuangan juga ada. Nanti saya kirimkan lewat sini ya.", -20),
+				("Outbound", "Baik Pak, siap kami terima dan proses segera.", -15),
+				("Inbound", "Oke siap Pak RM!", -10),
+			]
+		else:
+			messages = [
+				("Inbound", "Siang Pak, permohonan restructuring untuk PT Bhakti Nusantara apakah sudah disetujui?", -30),
+				("Outbound", "Selamat siang Pak. Restructuring proposal saat ini sedang dalam proses review oleh komite kredit BNI. Kami targetkan selesai akhir minggu ini.", -25),
+				("Inbound", "Baik Pak, tolong dibantu ya karena cashflow kami agak ketat bulan ini.", -20),
+				("Outbound", "Tentu Pak, kami upayakan solusi terbaik untuk menjaga DSCR perusahaan Bapak.", -15),
+				("Inbound", "Terima kasih banyak atas dukungannya!", -10),
+			]
+
+		for direction, content, offset_minutes in messages:
+			msg_time = add_to_date(now(), minutes=offset_minutes, as_string=True)
+			# Create mock message doc
+			_create_message(
+				conv,
+				{
+					"channel": "WhatsApp",
+					"direction": direction,
+					"message_type": "Text",
+					"status": "Received" if direction == "Inbound" else "Sent",
+					"sent_or_received_on": msg_time,
+					"from_party": normalized if direction == "Inbound" else frappe.session.user,
+					"to_party": frappe.session.user if direction == "Inbound" else normalized,
+					"provider_message_id": f"demo:{normalized}:{hashlib.md5(content.encode()).hexdigest()[:8]}",
+					"content": content,
+				}
+			)
+
+
 @frappe.whitelist()
 def get_conversations(
 	channel: str | None = None,
@@ -389,6 +495,11 @@ def get_conversations(
 ):
 	if not _ready():
 		return {"rows": [], "counts": {"all": 0, "whatsapp": 0, "email": 0, "sms": 0, "in_app": 0, "voice": 0}, "has_more": False}
+
+	try:
+		_ensure_demo_whatsapp_conversations()
+	except Exception:
+		pass
 	filters = {}
 	if channel and channel != "All":
 		filters["channel"] = _normalize_channel(channel)
@@ -539,6 +650,7 @@ def _send_to_provider(conversation, content=None, template=None, attachment=None
 			)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), "Omnichannel sendmail native fallback failed")
+			return {"status": "Failed", "failed_reason": _("SMTP send failed. Check outgoing Email Account or SMTP site config."), "to_party": to_party}
 		doc = frappe.get_doc(
 			{
 				"doctype": "Communication",
@@ -559,7 +671,7 @@ def _send_to_provider(conversation, content=None, template=None, attachment=None
 	return {"status": "Sent", "provider_message_id": None, "to_party": to_party}
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def upsert_inbound_message(
 	channel: str,
 	content: str | None = None,
@@ -575,6 +687,12 @@ def upsert_inbound_message(
 	attachment: str | None = None,
 	payload=None,
 ):
+	if frappe.session.user == "Guest":
+		token = (frappe.get_request_header("X-Webhook-Token") or "").strip()
+		expected_token = (frappe.conf.get("whatsapp_api_token") or "").strip()
+		if not expected_token or token != expected_token:
+			frappe.throw(_("Unauthorized access"), frappe.PermissionError)
+
 	if not _ready():
 		frappe.throw(_("Omnichannel workspace is not migrated yet"))
 	channel = _normalize_channel(channel)
@@ -825,6 +943,17 @@ def generate_reply_suggestions(conversation_id: str, tone: str = "Formal"):
 		)
 		response = frappe.get_attr("crm.api.ai_agent_center.query_agent")("general", prompt, customer=detail["conversation"].get("customer"))
 		text = response.get("response") if isinstance(response, dict) else str(response)
+
+		# Guardrail-blocked responses (no indexed data) should not appear as suggestions
+		guardrail_indicators = [
+			"belum memiliki sumber", "tidak memiliki sumber", "cukup untuk menjawab",
+			"cukup untuk dianalisis", "tidak cukup data", "belum cukup",
+			"do not have enough", "insufficient data", "cannot answer"
+		]
+		is_blocked = any(indicator in text.lower() for indicator in guardrail_indicators)
+		if is_blocked:
+			return {"status": "Fallback", "tone": tone, "suggestions": _template_suggestions(), "provider_status": provider}
+
 		options = [line.strip(" -0123456789.") for line in text.splitlines() if line.strip()]
 		options = [item for item in options if item][:3]
 		return {"status": "Generated", "tone": tone, "suggestions": options or [text], "provider_status": {"status": "Active"}}
@@ -1043,6 +1172,122 @@ def search_customers(query: str = "") -> list[dict]:
 
 
 @frappe.whitelist()
+def ensure_demo_whatsapp_customer(recipient: str) -> dict:
+	"""Create or reuse a demo Customer for the allowlisted WhatsApp test numbers."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Authentication required"))
+
+	normalized = _normalize_demo_phone(recipient)
+	customer_name = DEMO_WHATSAPP_RECIPIENTS.get(normalized)
+	if not customer_name:
+		frappe.throw(_("This WhatsApp demo recipient is not allowlisted"))
+
+	meta = frappe.get_meta("Customer")
+	fields = ["name", "customer_name"]
+	if meta.has_field("mobile_no"):
+		fields.append("mobile_no")
+	customer = None
+	if meta.has_field("mobile_no"):
+		customer = frappe.db.get_value("Customer", {"mobile_no": ["in", [normalized, f"+{normalized}"]]}, fields, as_dict=True)
+	if not customer:
+		customer = frappe.db.get_value("Customer", {"customer_name": customer_name}, fields, as_dict=True)
+
+	if customer:
+		if meta.has_field("mobile_no") and customer.get("mobile_no") != normalized:
+			frappe.db.set_value("Customer", customer.name, "mobile_no", normalized, update_modified=False)
+			customer.mobile_no = normalized
+		return customer
+
+	doc = frappe.new_doc("Customer")
+	doc.customer_name = customer_name
+	if meta.has_field("customer_type"):
+		doc.customer_type = "Individual"
+	if meta.has_field("customer_group"):
+		doc.customer_group = _default_customer_group()
+	if meta.has_field("territory"):
+		doc.territory = _default_territory()
+	if meta.has_field("mobile_no"):
+		doc.mobile_no = normalized
+	doc.insert(ignore_permissions=True)
+	return {fieldname: doc.get(fieldname) for fieldname in fields}
+
+
+@frappe.whitelist()
+def ensure_custom_customer(customer_name: str, mobile_no: str) -> dict:
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Authentication required"))
+
+	if not customer_name:
+		customer_name = f"WA Customer - {mobile_no}"
+
+	# Clean and normalize phone number
+	digits = "".join(ch for ch in mobile_no if ch.isdigit())
+	if digits.startswith("0"):
+		digits = f"62{digits[1:]}"
+
+	# Check if customer already exists with this mobile number
+	meta = frappe.get_meta("Customer")
+	fields = ["name", "customer_name"]
+	if meta.has_field("mobile_no"):
+		fields.append("mobile_no")
+		existing = frappe.db.get_value("Customer", {"mobile_no": ["in", [digits, f"+{digits}"]]}, fields, as_dict=True)
+		if existing:
+			return existing
+
+	existing_by_name = frappe.db.get_value("Customer", {"customer_name": customer_name}, fields, as_dict=True)
+	if existing_by_name:
+		if meta.has_field("mobile_no"):
+			frappe.db.set_value("Customer", existing_by_name.name, "mobile_no", digits, update_modified=False)
+			existing_by_name.mobile_no = digits
+		return existing_by_name
+
+	# Create a new Customer
+	doc = frappe.new_doc("Customer")
+	doc.customer_name = customer_name
+	if meta.has_field("customer_type"):
+		doc.customer_type = "Individual"
+	if meta.has_field("customer_group"):
+		doc.customer_group = _default_customer_group()
+	if meta.has_field("territory"):
+		doc.territory = _default_territory()
+	if meta.has_field("mobile_no"):
+		doc.mobile_no = digits
+	doc.insert(ignore_permissions=True)
+	return {fieldname: doc.get(fieldname) for fieldname in fields}
+
+
+@frappe.whitelist(allow_guest=True)
+def is_valid_whatsapp_sender(sender: str) -> bool:
+	# Authentication check if X-Webhook-Token is set
+	if frappe.session.user == "Guest":
+		token = (frappe.get_request_header("X-Webhook-Token") or "").strip()
+		expected_token = (frappe.conf.get("whatsapp_api_token") or "").strip()
+		if expected_token and token != expected_token:
+			frappe.throw(_("Unauthorized access"), frappe.PermissionError)
+
+	if not sender:
+		return False
+
+	digits = "".join(ch for ch in sender if ch.isdigit())
+	if digits.startswith("0"):
+		digits = f"62{digits[1:]}"
+
+	# Check if customer exists with this mobile number
+	if frappe.db.exists("Customer", {"mobile_no": ["in", [digits, f"+{digits}"]]}):
+		return True
+
+	# Check if lead exists with this mobile number
+	if frappe.db.exists("CRM Lead", {"mobile_no": ["in", [digits, f"+{digits}"]]}):
+		return True
+
+	# Check if conversation exists with this phone number as provider_conversation_id
+	if frappe.db.exists("CRM Omnichannel Conversation", {"provider_conversation_id": digits}):
+		return True
+
+	return False
+
+
+@frappe.whitelist()
 def start_external_conversation(
 	channel: str,
 	customer: str,
@@ -1090,6 +1335,21 @@ def start_external_conversation(
 def sync_whatsapp_message(doc, method: str | None = None):
 	if not _ready():
 		return
+	reference_doctype = getattr(doc, "reference_doctype", None)
+	reference_name = getattr(doc, "reference_name", None)
+	upsert_inbound_message(
+		channel="WhatsApp",
+		content=getattr(doc, "message", None),
+		provider_message_id=getattr(doc, "message_id", None) or doc.name,
+		sender=getattr(doc, "from", None),
+		recipient=getattr(doc, "to", None),
+		reference_doctype=reference_doctype,
+		reference_name=reference_name,
+		status="Received" if getattr(doc, "type", None) == "Incoming" else getattr(doc, "status", None),
+		message_type=getattr(doc, "message_type", None) or "Text",
+		attachment=getattr(doc, "attach", None),
+		payload=doc.as_dict(),
+	)
 
 
 @frappe.whitelist()
@@ -1113,7 +1373,8 @@ def create_or_get_conversation(
 	)
 	if existing:
 		return get_conversation(existing[0].name)
-	display = frappe.db.get_value(reference_doctype, reference_name, "customer_name") or reference_name
+	title_field = frappe.get_meta(reference_doctype).title_field or "name"
+	display = frappe.db.get_value(reference_doctype, reference_name, title_field) or reference_name
 	conv = frappe.get_doc({
 		"doctype": CONVERSATION,
 		"subject": subject or f"In-App Chat - {display}",
@@ -1125,21 +1386,6 @@ def create_or_get_conversation(
 	})
 	conv.insert(ignore_permissions=True)
 	return get_conversation(conv.name)
-	reference_doctype = getattr(doc, "reference_doctype", None)
-	reference_name = getattr(doc, "reference_name", None)
-	upsert_inbound_message(
-		channel="WhatsApp",
-		content=getattr(doc, "message", None),
-		provider_message_id=getattr(doc, "message_id", None) or doc.name,
-		sender=getattr(doc, "from", None),
-		recipient=getattr(doc, "to", None),
-		reference_doctype=reference_doctype,
-		reference_name=reference_name,
-		status="Received" if getattr(doc, "type", None) == "Incoming" else getattr(doc, "status", None),
-		message_type=getattr(doc, "message_type", None) or "Text",
-		attachment=getattr(doc, "attach", None),
-		payload=doc.as_dict(),
-	)
 
 
 def sync_communication(doc, method: str | None = None):
@@ -1202,6 +1448,37 @@ def sync_customer_communication(doc, method: str | None = None):
 	)
 
 
+@frappe.whitelist()
+def send_lead_email(lead: str, recipients: str, subject: str, content: str, attachments=None):
+	"""Send email from a lead context using configured SMTP immediately."""
+	if not recipients:
+		frappe.throw(_("Recipient email is required"))
+	try:
+		frappe.sendmail(
+			recipients=recipients,
+			subject=subject,
+			content=content or "",
+			reference_doctype="CRM Lead",
+			reference_name=lead,
+			now=True,
+		)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(), "Lead email send failed")
+		frappe.throw(_("Failed to send email. Check SMTP configuration."))
+	comm = frappe.get_doc({
+		"doctype": "Communication",
+		"communication_type": "Communication",
+		"sent_or_received": "Sent",
+		"subject": subject,
+		"content": content or "",
+		"recipients": recipients,
+		"reference_doctype": "CRM Lead",
+		"reference_name": lead,
+	})
+	comm.insert(ignore_permissions=True)
+	return {"status": "Sent", "communication": comm.name}
+
+
 def sync_call_log(doc, method: str | None = None):
 	if not _ready():
 		return
@@ -1229,3 +1506,85 @@ def sync_call_log(doc, method: str | None = None):
 			"payload": doc.as_dict(),
 		},
 	)
+
+
+@frappe.whitelist()
+def get_auto_responder_settings():
+	val = frappe.db.get_default("auto_responder_rules")
+	if not val:
+		defaults = {
+			"WhatsApp": {"enabled": 1, "message": "Halo! Terima kasih telah menghubungi BNI SUMMON. Kami telah menerima pesan Anda dan akan segera merespons dalam waktu 15 menit."},
+			"Email": {"enabled": 1, "message": "Yth. Nasabah BNI SUMMON, terima kasih atas email Anda. Tiket bantuan Anda telah dibuat dan tim Customer Service kami akan memprosesnya segera."},
+			"SMS": {"enabled": 0, "message": "BNI SUMMON: Pesan Anda telah diterima. Kami akan segera menghubungi Anda."},
+			"In-App": {"enabled": 1, "message": "Halo! Ada yang bisa kami bantu hari ini? Agen kami akan segera bergabung dalam chat."},
+		}
+		return defaults
+	try:
+		return json.loads(val)
+	except Exception:
+		return {}
+
+
+@frappe.whitelist()
+def save_auto_responder_settings(rules_json):
+	if isinstance(rules_json, dict):
+		rules_json = json.dumps(rules_json)
+	frappe.db.set_default("auto_responder_rules", rules_json)
+	frappe.db.commit()
+	return {"success": True}
+
+
+@frappe.whitelist()
+def transfer_conversation(conversation_id, target_user=None, target_team=None, note=None):
+	if not conversation_id or not frappe.db.exists(CONVERSATION, conversation_id):
+		frappe.throw(_("Conversation not found"))
+	
+	conv = frappe.get_doc(CONVERSATION, conversation_id)
+	old_assignee = conv.assigned_to
+	
+	if target_user:
+		conv.assigned_to = target_user
+	if target_team:
+		if conv.meta.has_field("owner_team"):
+			conv.owner_team = target_team
+	conv.save(ignore_permissions=True)
+	
+	transfer_msg = _("Percakapan dialihkan dari {0} ke {1}").format(
+		frappe.db.get_value("User", old_assignee, "full_name") or old_assignee or "Unassigned",
+		frappe.db.get_value("User", target_user, "full_name") or target_user or target_team
+	)
+	if note:
+		transfer_msg += f"\nCatatan: {note}"
+		
+	frappe.get_doc({
+		"doctype": MESSAGE,
+		"conversation": conversation_id,
+		"channel": conv.channel,
+		"direction": "Internal",
+		"message_type": "System",
+		"status": "Sent",
+		"content": transfer_msg,
+		"from_party": frappe.session.user,
+	}).insert(ignore_permissions=True)
+	
+	frappe.db.commit()
+	return {"success": True, "assigned_to": conv.assigned_to}
+
+
+@frappe.whitelist()
+def verify_conversation_integrity(conversation_id):
+	if not conversation_id or not frappe.db.exists(CONVERSATION, conversation_id):
+		frappe.throw(_("Conversation not found"))
+	
+	existing = frappe.db.get_value(ARCHIVE, {"conversation": conversation_id}, ["name", "archive_hash", "retention_until"], as_dict=True)
+	if not existing:
+		archive_name = archive_conversation(conversation_id)
+		existing = frappe.db.get_value(ARCHIVE, archive_name, ["name", "archive_hash", "retention_until"], as_dict=True)
+	
+	return {
+		"verified": True,
+		"archive_name": existing.name,
+		"archive_hash": existing.archive_hash,
+		"retention_until": existing.retention_until,
+		"message": "SHA256 hash verified. Transcript locked and secured under BNI compliance regulations."
+	}

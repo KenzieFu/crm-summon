@@ -8,6 +8,12 @@ from frappe import _
 from frappe.utils import flt, now_datetime, nowdate, today
 
 
+def _db_sql(query, *args, **kwargs):
+	if frappe.db.db_type == 'postgres':
+		query = query.replace('`', '"')
+	return frappe.db.sql(query, *args, **kwargs)
+
+
 PORTFOLIO_TABLES = {
 	"CRM Portfolio Snapshot": """
 		CREATE TABLE IF NOT EXISTS `tabCRM Portfolio Snapshot` (
@@ -213,8 +219,19 @@ def ensure_portfolio_tables():
 	for table, statement in PORTFOLIO_TABLES.items():
 		if frappe.db.table_exists(table):
 			continue
+		stmt = statement
+		if frappe.db.db_type == 'postgres':
+			import re
+			# Convert backticks to double quotes
+			stmt = stmt.replace('`', '"')
+			# Convert LONGTEXT to TEXT
+			stmt = stmt.replace('LONGTEXT', 'TEXT')
+			# Remove MySQL-specific inline INDEX declarations
+			stmt = re.sub(r',\s*INDEX\s+[a-zA-Z0-9_]+\s*\([^)]+\)', '', stmt)
+			# Convert DATETIME to TIMESTAMP
+			stmt = stmt.replace('DATETIME', 'TIMESTAMP')
 		try:
-			frappe.db.sql_ddl(statement)
+			frappe.db.sql_ddl(stmt)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(), f"Portfolio - create table {table}")
 
@@ -236,12 +253,24 @@ def _raw_insert(table, values):
 	now = now_datetime()
 	payload = {"name": values.get("name") or str(uuid.uuid4()), "creation": now, "modified": now, **values}
 	columns = list(payload.keys())
+	quote = '"' if frappe.db.db_type == 'postgres' else '`'
+	quoted_table = f"{quote}tab{table}{quote}"
+	quoted_cols = ", ".join(f"{quote}{col}{quote}" for col in columns)
 	frappe.db.sql(
-		f"INSERT INTO `tab{table}` ({', '.join('`' + col + '`' for col in columns)}) "
-		f"VALUES ({', '.join(['%s'] * len(columns))})",
+		f"INSERT INTO {quoted_table} ({quoted_cols}) VALUES ({', '.join(['%s'] * len(columns))})",
 		[payload[col] for col in columns],
 	)
 	return payload["name"]
+
+
+def _check_portfolio_permission():
+	"""Require Sales User, Sales Manager, or System Manager role."""
+	roles = frappe.get_roles()
+	if not set(roles) & {"System Manager", "Sales Manager", "Sales User"}:
+		frappe.throw(
+			_("You do not have permission to access portfolio monitoring."),
+			frappe.PermissionError,
+		)
 
 
 def _build_period_filter(from_date: str | None = None, to_date: str | None = None) -> tuple:
@@ -271,8 +300,9 @@ def _aggregate_exposure_accounts(from_date: str | None = None, to_date: str | No
 	if not frappe.db.table_exists("CRM Credit Facility"):
 		return []
 
+	quote = '"' if frappe.db.db_type == 'postgres' else '`'
 	try:
-		rows = frappe.db.sql("""
+		rows = frappe.db.sql(f"""
 			SELECT
 				f.name AS facility_name,
 				f.customer,
@@ -285,9 +315,9 @@ def _aggregate_exposure_accounts(from_date: str | None = None, to_date: str | No
 				COALESCE(r.risk_grade, 'NR') AS risk_grade,
 				COALESCE(r.watchlist_status, 'No') AS watchlist_status,
 				COALESCE(r.npl_flag, 0) AS npl_flag,
-				COALESCE(f.health, '') AS region
-			FROM `tabCRM Credit Facility` f
-			LEFT JOIN `tabCRM Risk Profile` r ON r.customer = f.customer
+				f.health
+			FROM {quote}tabCRM Credit Facility{quote} f
+			LEFT JOIN {quote}tabCRM Risk Profile{quote} r ON r.customer = f.customer
 			WHERE f.status IN ('Active', 'Watchlist', 'Restructured')
 			AND f.outstanding > 0
 		""", as_dict=True)
@@ -310,8 +340,8 @@ def _aggregate_exposure_accounts(from_date: str | None = None, to_date: str | No
 			"product": row.product or "",
 			"industry_kbli": "",
 			"industry_name": "",
-			"region": row.region or "",
-			"province": row.region or "",
+			"region": "",
+			"province": "",
 			"risk_grade": row.risk_grade or "NR",
 			"dpd": dpd,
 			"status": row.status or "Active",
@@ -325,8 +355,9 @@ def _sync_exposure_accounts(from_date=None, to_date=None):
 	"""Sync exposure accounts table from live CRM data."""
 	ensure_portfolio_tables()
 	accounts = _aggregate_exposure_accounts(from_date, to_date)
+	quote = '"' if frappe.db.db_type == 'postgres' else '`'
 	if frappe.db.table_exists("CRM Exposure Account"):
-		frappe.db.sql("DELETE FROM `tabCRM Exposure Account`")
+		frappe.db.sql(f"DELETE FROM {quote}tabCRM Exposure Account{quote}")
 		for acc in accounts:
 			_raw_insert("CRM Exposure Account", acc)
 	return accounts
@@ -339,6 +370,7 @@ def _sync_exposure_accounts(from_date=None, to_date=None):
 @frappe.whitelist()
 def get_portfolio_overview(from_date: str | None = None, to_date: str | None = None) -> dict:
 	"""Return portfolio KPI summary for the given period."""
+	_check_portfolio_permission()
 	fd, td = _build_period_filter(from_date, to_date)
 	accounts = _sync_exposure_accounts(fd, td)
 
@@ -420,13 +452,22 @@ def get_trend_chart(from_date: str | None = None, to_date: str | None = None) ->
 	os_trend = []
 	npl_trend = []
 	for m in months:
-		year, month = m.split("-")
-		rows = frappe.db.sql("""
+		start_date = f"{m}-01"
+		if m == months[-1]:
+			end_date = td
+		else:
+			next_idx = months.index(m) + 1
+			if next_idx < len(months):
+				end_date = f"{months[next_idx]}-01"
+			else:
+				end_date = td
+		rows = _db_sql("""
 			SELECT COALESCE(SUM(outstanding), 0) as total_os,
 				COALESCE(SUM(CASE WHEN default_flag=1 THEN outstanding ELSE 0 END), 0) as npl_os
 			FROM `tabCRM Credit Facility`
 			WHERE status IN ('Active','Watchlist','Restructured')
-		""", as_dict=True)
+			AND (creation IS NULL OR creation < %s)
+		""", (end_date,), as_dict=True)
 		row = rows[0] if rows else {}
 		total_os = flt(row.get("total_os", 0))
 		npl_os = flt(row.get("npl_os", 0))
@@ -694,38 +735,20 @@ def get_ews_signals(from_date: str | None = None) -> dict:
 	if not frappe.db.table_exists("CRM EWS Signal"):
 		return _EMPTY_SIGNALS()
 
-	signals = frappe.db.sql("""
+	signals = _db_sql("""
 		SELECT * FROM `tabCRM EWS Signal`
 		WHERE DATE(detected_at) >= %s OR detected_at IS NULL
-		ORDER BY FIELD(severity, 'Red', 'Amber', 'Green'), creation DESC
+		ORDER BY CASE WHEN severity = 'Red' THEN 1 WHEN severity = 'Amber' THEN 2 WHEN severity = 'Green' THEN 3 ELSE 4 END, creation DESC
 		LIMIT 50
 	""", (fd,), as_dict=True)
 
-	if not signals:
-		signals = _seed_default_ews_signals()
-
 	return {"signals": signals, "count": len(signals)}
-
-
-def _seed_default_ews_signals():
-	ensure_portfolio_tables()
-	defaults = [
-		{"customer": "Demo-Customer-1", "borrower_name": "Bhakti Nusantara Corp", "signal_type": "Payment Delay", "severity": "Red", "source": "Collections System", "signal_text": "Debt Service Coverage Ratio (DSCR) dropped below 1.05x. Payment anomaly detected.", "detected_at": "2026-05-20", "status": "Open", "acknowledged": 0},
-		{"customer": "Demo-Customer-2", "borrower_name": "Citra Baru Property", "signal_type": "Covenant Near Breach", "severity": "Amber", "source": "Covenant Engine", "signal_text": "Covenant Debt-to-Equity is nearing critical limit. Actual: 2.85x vs limit: 3.0x.", "detected_at": "2026-05-22", "status": "Open", "acknowledged": 0},
-		{"customer": "Demo-Customer-3", "borrower_name": "Pioneer Logistik Tbk", "signal_type": "Negative News", "severity": "Amber", "source": "News AI Scanner", "signal_text": "Adverse local media sentiment detected. Class action lawsuit filed.", "detected_at": "2026-05-23", "status": "Open", "acknowledged": 0},
-	]
-	signal_ids = []
-	for s in defaults:
-		signal_ids.append(_raw_insert("CRM EWS Signal", s))
-	return frappe.db.sql(
-		"SELECT * FROM `tabCRM EWS Signal` ORDER BY creation DESC LIMIT 50",
-		as_dict=True,
-	)
 
 
 @frappe.whitelist()
 def acknowledge_ews_signal(signal_id: str, action_notes: str | None = None) -> dict:
 	"""Acknowledge an EWS signal."""
+	_check_portfolio_permission()
 	ensure_portfolio_tables()
 	frappe.db.sql(
 		"UPDATE `tabCRM EWS Signal` SET acknowledged=1, acknowledged_by=%s, acknowledged_at=%s, status='Acknowledged', action_notes=%s WHERE name=%s",
@@ -750,36 +773,20 @@ def get_covenant_breaches(from_date: str | None = None) -> dict:
 	if not frappe.db.table_exists("CRM Covenant Test Result"):
 		return _EMPTY_COVENANTS()
 
-	covenants = frappe.db.sql("""
+	covenants = _db_sql("""
 		SELECT * FROM `tabCRM Covenant Test Result`
 		WHERE DATE(tested_at) >= %s OR tested_at IS NULL
-		ORDER BY FIELD(result, 'Breach', 'Warning', 'Compliant'), creation DESC
+		ORDER BY CASE WHEN result = 'Breach' THEN 1 WHEN result = 'Warning' THEN 2 WHEN result = 'Compliant' THEN 3 ELSE 4 END, creation DESC
 		LIMIT 50
 	""", (fd,), as_dict=True)
 
-	if not covenants:
-		covenants = _seed_default_covenants()
-
 	return {"covenants": covenants, "count": len(covenants)}
-
-
-def _seed_default_covenants():
-	ensure_portfolio_tables()
-	defaults = [
-		{"customer": "Demo-Customer-1", "borrower_name": "Bhakti Nusantara Corp", "covenant_type": "Debt-to-Equity", "covenant_rule": "Debt-to-Equity ratio must not exceed 2.50x", "threshold": "2.50x", "actual_value": "2.95x", "result": "Breach", "tested_at": "2026-05-20", "cure_status": "Open"},
-		{"customer": "Demo-Customer-2", "borrower_name": "Citra Baru Property", "covenant_type": "Current Ratio", "covenant_rule": "Current ratio must remain above 1.20x", "threshold": "1.20x", "actual_value": "1.42x", "result": "Compliant", "tested_at": "2026-05-22", "cure_status": "N/A"},
-	]
-	for c in defaults:
-		_raw_insert("CRM Covenant Test Result", c)
-	return frappe.db.sql(
-		"SELECT * FROM `tabCRM Covenant Test Result` ORDER BY creation DESC LIMIT 50",
-		as_dict=True,
-	)
 
 
 @frappe.whitelist()
 def cure_covenant(covenant_id: str, cure_notes: str | None = None) -> dict:
 	"""Mark a covenant breach as cured/resolved."""
+	_check_portfolio_permission()
 	ensure_portfolio_tables()
 	frappe.db.sql(
 		"UPDATE `tabCRM Covenant Test Result` SET cure_status='Cured', cure_notes=%s WHERE name=%s",
@@ -801,12 +808,10 @@ def cure_covenant(covenant_id: str, cure_notes: str | None = None) -> dict:
 def get_stress_test_scenarios() -> dict:
 	"""Return preset stress test scenarios and calculate impact."""
 	ensure_portfolio_tables()
-	scenarios = frappe.db.sql(
+	scenarios = _db_sql(
 		"SELECT * FROM `tabCRM Stress Test Scenario` WHERE is_preset=1 ORDER BY creation",
 		as_dict=True,
 	)
-	if not scenarios:
-		scenarios = _seed_default_stress_scenarios()
 
 	overview = get_portfolio_overview()
 	base_car = 18.5
@@ -840,7 +845,7 @@ def _seed_default_stress_scenarios():
 	]
 	for s in defaults:
 		_raw_insert("CRM Stress Test Scenario", s)
-	return frappe.db.sql(
+	return _db_sql(
 		"SELECT * FROM `tabCRM Stress Test Scenario` WHERE is_preset=1 ORDER BY creation",
 		as_dict=True,
 	)
@@ -849,6 +854,7 @@ def _seed_default_stress_scenarios():
 @frappe.whitelist()
 def run_stress_test(rate_shock: float = 0, npl_shock: float = 0) -> dict:
 	"""Run custom stress test simulation and return impact."""
+	_check_portfolio_permission()
 	overview = get_portfolio_overview()
 	base_car = 18.5
 	total_os = float(overview.get("total_os", 0))
@@ -947,14 +953,11 @@ def get_watchlist(from_date: str | None = None) -> dict:
 	if not frappe.db.table_exists("CRM Watchlist Case"):
 		return _EMPTY_WATCHLIST()
 
-	watchlist = frappe.db.sql("""
+	watchlist = _db_sql("""
 		SELECT * FROM `tabCRM Watchlist Case`
 		ORDER BY creation DESC
 		LIMIT 50
 	""", as_dict=True)
-
-	if not watchlist:
-		watchlist = _seed_default_watchlist()
 
 	return {"watchlist": watchlist, "count": len(watchlist)}
 
@@ -970,7 +973,7 @@ def _seed_default_watchlist():
 	]
 	for w in defaults:
 		_raw_insert("CRM Watchlist Case", w)
-	return frappe.db.sql(
+	return _db_sql(
 		"SELECT * FROM `tabCRM Watchlist Case` ORDER BY creation DESC LIMIT 50",
 		as_dict=True,
 	)
@@ -979,6 +982,7 @@ def _seed_default_watchlist():
 @frappe.whitelist()
 def add_to_watchlist(borrower_name: str, os_amount: float, dpd: int = 0, reason: str = "Manual") -> dict:
 	"""Add a borrower to the watchlist."""
+	_check_portfolio_permission()
 	ensure_portfolio_tables()
 	watch_id = _raw_insert("CRM Watchlist Case", {
 		"customer": "",
@@ -997,6 +1001,7 @@ def add_to_watchlist(borrower_name: str, os_amount: float, dpd: int = 0, reason:
 @frappe.whitelist()
 def request_watchlist_removal(watch_id: str, reason: str) -> dict:
 	"""Request watchlist removal with justification."""
+	_check_portfolio_permission()
 	ensure_portfolio_tables()
 	frappe.db.sql(
 		"UPDATE `tabCRM Watchlist Case` SET removal_reason=%s, removal_requested_by=%s, removal_status='Requested' WHERE name=%s",
@@ -1026,6 +1031,7 @@ def get_simulation_presets() -> dict:
 @frappe.whitelist()
 def run_portfolio_simulation(scenario_json: str | None = None) -> dict:
 	"""Run what-if simulation with hypothetical accounts."""
+	_check_portfolio_permission()
 	scenario = frappe.parse_json(scenario_json) if isinstance(scenario_json, str) else (scenario_json or {})
 	included = scenario.get("included", [])
 
@@ -1073,13 +1079,10 @@ def get_ai_portfolio_alerts(from_date: str | None = None) -> dict:
 	ensure_portfolio_tables()
 	if not frappe.db.table_exists("CRM Portfolio Alert"):
 		return _EMPTY_ALERTS()
-	alerts = frappe.db.sql(
-		"SELECT * FROM `tabCRM Portfolio Alert` ORDER BY FIELD(severity, 'Red', 'Amber', 'Green'), creation DESC LIMIT 20",
+	alerts = _db_sql(
+		"SELECT * FROM `tabCRM Portfolio Alert` ORDER BY CASE WHEN severity = 'Red' THEN 1 WHEN severity = 'Amber' THEN 2 WHEN severity = 'Green' THEN 3 ELSE 4 END, creation DESC LIMIT 20",
 		as_dict=True,
 	)
-
-	if not alerts:
-		alerts = _seed_default_alerts()
 
 	return {"alerts": alerts}
 
@@ -1093,7 +1096,7 @@ def _seed_default_alerts():
 	]
 	for a in defaults:
 		_raw_insert("CRM Portfolio Alert", a)
-	return frappe.db.sql(
+	return _db_sql(
 		"SELECT * FROM `tabCRM Portfolio Alert` ORDER BY creation DESC LIMIT 20",
 		as_dict=True,
 	)
@@ -1102,6 +1105,7 @@ def _seed_default_alerts():
 @frappe.whitelist()
 def acknowledge_portfolio_alert(alert_id: str) -> dict:
 	"""Acknowledge a portfolio alert."""
+	_check_portfolio_permission()
 	ensure_portfolio_tables()
 	frappe.db.sql(
 		"UPDATE `tabCRM Portfolio Alert` SET acknowledged=1, status='Acknowledged' WHERE name=%s",
@@ -1114,6 +1118,7 @@ def acknowledge_portfolio_alert(alert_id: str) -> dict:
 @frappe.whitelist()
 def generate_ai_alerts(from_date: str | None = None) -> dict:
 	"""Trigger AI scan to generate portfolio alerts based on current data."""
+	_check_portfolio_permission()
 	overview = get_portfolio_overview(from_date, from_date)
 	industry = get_industry_exposure(from_date)
 	geographic = get_geographic_exposure(from_date)
@@ -1277,12 +1282,14 @@ def get_npl_trend(from_date: str | None = None) -> dict:
 
 	npl_data = []
 	for m in months[-24:]:
-		rows = frappe.db.sql("""
+		quote = '"' if frappe.db.db_type == 'postgres' else '`'
+		diff_expr = "(CURRENT_DATE - COALESCE(due_date, CURRENT_DATE))" if frappe.db.db_type == 'postgres' else "DATEDIFF(CURDATE(), COALESCE(due_date, CURDATE()))"
+		rows = _db_sql(f"""
 			SELECT
-				COALESCE(SUM(CASE WHEN DATEDIFF(CURDATE(), COALESCE(due_date, CURDATE())) BETWEEN 0 AND 30 THEN outstanding ELSE 0 END), 0) as bucket_current,
-				COALESCE(SUM(CASE WHEN DATEDIFF(CURDATE(), COALESCE(due_date, CURDATE())) BETWEEN 31 AND 60 THEN outstanding ELSE 0 END), 0) as bucket_30,
-				COALESCE(SUM(CASE WHEN DATEDIFF(CURDATE(), COALESCE(due_date, CURDATE())) BETWEEN 61 AND 90 THEN outstanding ELSE 0 END), 0) as bucket_60,
-				COALESCE(SUM(CASE WHEN DATEDIFF(CURDATE(), COALESCE(due_date, CURDATE())) > 90 THEN outstanding ELSE 0 END), 0) as bucket_90plus,
+				COALESCE(SUM(CASE WHEN {diff_expr} BETWEEN 0 AND 30 THEN outstanding ELSE 0 END), 0) as bucket_current,
+				COALESCE(SUM(CASE WHEN {diff_expr} BETWEEN 31 AND 60 THEN outstanding ELSE 0 END), 0) as bucket_30,
+				COALESCE(SUM(CASE WHEN {diff_expr} BETWEEN 61 AND 90 THEN outstanding ELSE 0 END), 0) as bucket_60,
+				COALESCE(SUM(CASE WHEN {diff_expr} > 90 THEN outstanding ELSE 0 END), 0) as bucket_90plus,
 				COALESCE(SUM(outstanding), 0) as total_os,
 				COALESCE(SUM(CASE WHEN default_flag=1 THEN outstanding ELSE 0 END), 0) as npl_os
 			FROM `tabCRM Credit Facility`
@@ -1333,11 +1340,18 @@ def get_vintage_analysis(from_date: str | None = None) -> dict:
 	fd, _ = _build_period_filter(from_date, None)
 
 	vintages = {}
-	loans = frappe.db.sql("""
-		SELECT DATE_FORMAT(COALESCE(creation, CURDATE()), '%%Y-%%m') as origination_month,
+	quote = '"' if frappe.db.db_type == 'postgres' else '`'
+	if frappe.db.db_type == 'postgres':
+		date_fmt = "TO_CHAR(COALESCE(creation, CURRENT_DATE), 'YYYY-MM')"
+		mob_expr = "((EXTRACT(year FROM CURRENT_DATE) - EXTRACT(year FROM COALESCE(creation, CURRENT_DATE))) * 12 + EXTRACT(month FROM CURRENT_DATE) - EXTRACT(month FROM COALESCE(creation, CURRENT_DATE)))"
+	else:
+		date_fmt = "DATE_FORMAT(COALESCE(creation, CURDATE()), '%%Y-%%m')"
+		mob_expr = "TIMESTAMPDIFF(MONTH, COALESCE(creation, CURDATE()), CURDATE())"
+	loans = _db_sql(f"""
+		SELECT {date_fmt} as origination_month,
 			outstanding,
 			default_flag,
-			TIMESTAMPDIFF(MONTH, COALESCE(creation, CURDATE()), CURDATE()) as months_on_book
+			{mob_expr} as months_on_book
 		FROM `tabCRM Credit Facility`
 		WHERE status IN ('Active','Watchlist','Restructured')
 		AND outstanding > 0
@@ -1384,7 +1398,7 @@ def get_vintage_analysis(from_date: str | None = None) -> dict:
 def get_grade_migration(from_date: str | None = None) -> dict:
 	"""Return risk grade migration matrix."""
 	ensure_portfolio_tables()
-	migrations = frappe.db.sql("""
+	migrations = _db_sql("""
 		SELECT grade_start, grade_end, COUNT(*) as count
 		FROM `tabCRM Risk Grade Migration`
 		GROUP BY grade_start, grade_end

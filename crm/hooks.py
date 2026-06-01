@@ -9,6 +9,12 @@ app_logo_url = "/assets/crm/images/bni-logo.png"
 app_icon_title = "BNI CRM"
 app_icon_route = "/crm"
 
+website_context = {
+	"splash_image": "/assets/crm/images/bni-logo.png"
+}
+
+
+
 # Apps
 # ------------------
 
@@ -131,12 +137,12 @@ before_uninstall = "crm.uninstall.before_uninstall"
 # Permissions evaluated in scripted ways
 
 permission_query_conditions = {
-	"CRM Lead": "crm.api.rbac.permission_query_conditions",
-	"CRM Deal": "crm.api.rbac.permission_query_conditions",
-	"CRM Credit Application": "crm.api.rbac.permission_query_conditions",
-	"CRM Credit Facility": "crm.api.rbac.permission_query_conditions",
-	"CRM Organization": "crm.api.rbac.permission_query_conditions",
-	"Contact": "crm.api.rbac.permission_query_conditions",
+	"CRM Lead": "crm.api.rbac.get_lead_cond",
+	"CRM Deal": "crm.api.rbac.get_deal_cond",
+	"CRM Credit Application": "crm.api.rbac.get_credit_app_cond",
+	"CRM Credit Facility": "crm.api.rbac.get_credit_fac_cond",
+	"CRM Organization": "crm.api.rbac.get_org_cond",
+	"Contact": "crm.api.rbac.get_contact_cond",
 }
 
 has_permission = {
@@ -207,12 +213,18 @@ doc_events = {
 	# RBAC SoD enforcement
 	"CRM Lead": {
 		"validate": ["crm.api.rbac.validate_sod_on_save"],
+		"before_insert": ["crm.api.lead_management.auto_link_campaign"],
+		"before_save": ["crm.api.lead_management.compute_referral_fee", "crm.lead_quality_model.predict_quality_hook"],
+		"after_insert": ["crm.api.lead_management.notify_referrer"],
 	},
 	"CRM Credit Application": {
 		"validate": ["crm.api.rbac.validate_sod_on_save"],
 	},
 	"CRM Credit Facility": {
 		"validate": ["crm.api.rbac.validate_sod_on_save"],
+	},
+	"CRM Product": {
+		"before_save": ["crm.api.products.validate_product_before_save"],
 	},
 }
 
@@ -238,6 +250,7 @@ scheduler_events = {
 			"crm.lead_syncing.background_sync.sync_leads_from_sources_5_minutes",
 			"crm.lead_jobs.recompute_lead_sla",
 			"crm.lead_jobs.fire_sla_alerts",
+			"crm.utils.workflow_engine.process_sla_background_job",
 		],
 		"*/10 * * * *": ["crm.lead_syncing.background_sync.sync_leads_from_sources_10_minutes"],
 		"*/15 * * * *": [
@@ -249,8 +262,14 @@ scheduler_events = {
 			"crm.lead_jobs.compute_lead_aging",
 		],
 		"0 8 * * *": ["crm.lead_jobs.fire_aging_alerts"],
+		"55 23 * * *": ["crm.api.lead_management.snapshot_lead_aging"],
 		"0 6 * * *": ["crm.task_jobs.process_recurring_tasks"],
+		"0 2 * * 0": ["crm.lead_quality_model.train_model"],
+		"30 0 * * *": ["crm.api.products.process_scheduled_retirements"],
+		"0 1 * * *": ["crm.api.tasks.lock_stale_time_logs"],
 		"*/10 * * * *": ["crm.task_jobs.process_escalations"],
+		"0 * * * *": ["crm.api.notifications.run_digests"],
+		"0 3 * * *": ["crm.api.notifications.enforce_audit_retention"],
 	},
 }
 

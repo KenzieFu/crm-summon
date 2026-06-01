@@ -1,9 +1,12 @@
 import json
+import time
 from decimal import Decimal
 
 import frappe
 from frappe import _
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 
 KIMI_BASE_URL = "https://api.moonshot.ai/v1"
@@ -14,6 +17,48 @@ KIMI_MODEL_ALIASES = {
 	"kimi-k2-latest": DEFAULT_KIMI_MODEL,
 	"kimi k2.6": DEFAULT_KIMI_MODEL,
 }
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_FACTOR = 2
+RETRY_STATUS_CODES = [429, 500, 502, 503, 504]
+
+
+def _build_retry_session(timeout=60):
+	session = requests.Session()
+	retry = Retry(
+		total=MAX_RETRIES,
+		backoff_factor=RETRY_BACKOFF_FACTOR,
+		status_forcelist=RETRY_STATUS_CODES,
+		allowed_methods=["POST"],
+		raise_on_status=False,
+	)
+	adapter = HTTPAdapter(max_retries=retry)
+	session.mount("https://", adapter)
+	session.mount("http://", adapter)
+	return session
+
+
+def _request_with_retry(method, url, *, headers, data, timeout, stream=False):
+	last_error = None
+	for attempt in range(MAX_RETRIES + 1):
+		try:
+			session = _build_retry_session()
+			response = session.request(method, url, headers=headers, data=data, timeout=timeout, stream=stream)
+			if response.status_code >= 500:
+				last_error = response
+				if attempt < MAX_RETRIES:
+					frappe.log_error(title="Kimi API Retry", message=f"Kimi API attempt {attempt + 1} failed: {response.status_code} {response.text[:300]}")
+					time.sleep(RETRY_BACKOFF_FACTOR ** attempt)
+					continue
+			return response
+		except (requests.ConnectionError, requests.Timeout) as e:
+			last_error = e
+			if attempt < MAX_RETRIES:
+				frappe.log_error(title="Kimi API Retry", message=f"Kimi API attempt {attempt + 1} failed: {e}")
+				time.sleep(RETRY_BACKOFF_FACTOR ** attempt)
+				continue
+			frappe.throw(_("Kimi API request failed after {0} retries: {1}").format(MAX_RETRIES, str(e)))
+	return last_error
 
 
 def normalize_kimi_model(model=None):
@@ -58,7 +103,7 @@ def estimate_kimi_cost(tokens: int) -> Decimal:
 	return Decimal(tokens or 0) * Decimal("0.000012")
 
 
-def call_kimi_chat(messages, model=None, tools=None, thinking_mode="disabled", timeout=60):
+def call_kimi_chat(messages, model=None, tools=None, thinking_mode="disabled", timeout=180):
 	settings = get_ai_settings()
 	api_key = (settings.kimi_api_key or "").strip()
 	if not api_key or "******" in api_key:
@@ -75,7 +120,8 @@ def call_kimi_chat(messages, model=None, tools=None, thinking_mode="disabled", t
 	if thinking_mode:
 		payload["thinking"] = {"type": thinking_mode}
 
-	response = requests.post(
+	response = _request_with_retry(
+		"POST",
 		f"{base_url}/chat/completions",
 		headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
 		data=json.dumps(payload),
@@ -120,7 +166,8 @@ def stream_kimi_chat_events(messages, model=None, tools=None, thinking_mode="dis
 	if thinking_mode:
 		payload["thinking"] = {"type": thinking_mode}
 
-	response = requests.post(
+	response = _request_with_retry(
+		"POST",
 		f"{base_url}/chat/completions",
 		headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
 		data=json.dumps(payload),
@@ -148,9 +195,18 @@ def stream_kimi_chat_events(messages, model=None, tools=None, thinking_mode="dis
 		response_model = data.get("model") or response_model
 		if data.get("usage"):
 			usage = data.get("usage") or usage
-		delta = (((data.get("choices") or [{}])[0].get("delta") or {}).get("content")) or ""
-		if delta:
-			yield frappe._dict({"event": "delta", "delta": delta, "model": response_model, "usage": usage})
+		choices = data.get("choices") or [{}]
+		delta_obj = choices[0].get("delta") or {}
+		delta = delta_obj.get("content") or ""
+		reasoning_delta = delta_obj.get("reasoning_content") or ""
+		if delta or reasoning_delta:
+			yield frappe._dict({
+				"event": "delta",
+				"delta": delta,
+				"reasoning_delta": reasoning_delta,
+				"model": response_model,
+				"usage": usage
+			})
 
 	total_tokens = usage.get("total_tokens") or 0
 	yield frappe._dict(
