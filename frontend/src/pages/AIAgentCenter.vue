@@ -169,6 +169,37 @@
                 {{ file.name }}
               </span>
             </div>
+
+            <!-- Customer & Product Selection for Proposal Generator / Relationship Manager -->
+            <div v-if="selectedAgent?.key === 'proposal_generator' || selectedAgent?.key === 'relationship_manager'" class="mx-auto max-w-4xl mb-3 flex flex-wrap sm:flex-nowrap gap-3 p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] font-bold text-teal-800 uppercase tracking-wide mb-1 flex items-center gap-1">
+                  <FeatherIcon name="users" class="h-3 w-3" />
+                  {{ __('Pilih Nasabah (Customer)') }}
+                </label>
+                <select v-model="selectedCustomer" class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100">
+                  <option value="">-- {{ __('Pilih Nasabah') }} --</option>
+                  <option v-for="cust in customersList" :key="cust.name" :value="cust.name">{{ cust.customer_name }}</option>
+                </select>
+              </div>
+              <div class="flex-1 min-w-[200px]">
+                <label class="block text-[10px] font-bold text-teal-800 uppercase tracking-wide mb-1 flex items-center gap-1">
+                  <FeatherIcon name="briefcase" class="h-3 w-3" />
+                  {{ __('Pilih Produk (Product)') }}
+                </label>
+                <select v-model="selectedProduct" class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100">
+                  <option value="">-- {{ __('Pilih Produk') }} --</option>
+                  <option v-for="prod in productsList" :key="prod.name" :value="prod.name">{{ prod.product_name }}</option>
+                </select>
+              </div>
+              <div class="flex items-end shrink-0">
+                <Button variant="solid" theme="teal" size="sm" :disabled="!selectedCustomer || !selectedProduct || isLoading" @click="generateProposalDraft">
+                  <template #prefix><FeatherIcon name="sparkles" class="h-3.5 w-3.5 mr-0.5" /></template>
+                  {{ selectedAgent?.key === 'proposal_generator' ? __('Draft Proposal & Hadiah') : __('Next Best Action & Draf') }}
+                </Button>
+              </div>
+            </div>
+
             <form class="mx-auto flex max-w-4xl items-end gap-3" @submit.prevent="sendMessage()">
               <label class="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:border-teal-200 hover:text-teal-700">
                 <FeatherIcon name="paperclip" class="h-4 w-4" />
@@ -451,6 +482,11 @@ const sandboxResult = ref(null)
 const sandboxFallback = ref('')
 const chatContainer = ref(null)
 
+const selectedCustomer = ref('')
+const selectedProduct = ref('')
+const customersList = ref([])
+const productsList = ref([])
+
 watch(messages, (newMessages) => {
   persistAgentConversation(newMessages)
 }, { deep: true })
@@ -595,6 +631,8 @@ function selectAgent(agent) {
   persistAgentConversation(messages.value)
   selectedAgent.value = agent
   localStorage.setItem('ai_agent_center_selected_agent', agent.key)
+  selectedCustomer.value = ''
+  selectedProduct.value = ''
   loadAgentConversation(agent)
   loadAutomationRules()
 }
@@ -691,6 +729,7 @@ async function streamAgentResponse({ agent, content, loadingId }) {
       agent_key: agent.key,
       message: content,
       session_id: sessionId.value,
+      customer: selectedCustomer.value || undefined,
       attachments: attachments.value.map((file) => ({ name: file.name, size: file.size, type: file.type })),
     }),
   })
@@ -848,9 +887,44 @@ const PanelBlock = {
   },
 }
 
+async function loadCustomersAndProducts() {
+  try {
+    customersList.value = await call('crm.api.omnichannel.search_customers', { query: '' })
+    productsList.value = await call('frappe.client.get_list', {
+      doctype: 'CRM Product',
+      fields: ['name', 'product_name'],
+      limit_page_length: 100
+    })
+  } catch (error) {
+    console.error('Failed to load customers or products', error)
+  }
+}
+
+async function generateProposalDraft() {
+  if (!selectedCustomer.value || !selectedProduct.value) return
+  
+  const customerObj = customersList.value.find(c => c.name === selectedCustomer.value)
+  const customerName = customerObj ? customerObj.customer_name : selectedCustomer.value
+
+  const productObj = productsList.value.find(p => p.name === selectedProduct.value)
+  const productName = productObj ? productObj.product_name : selectedProduct.value
+
+  let prompt = ''
+  if (selectedAgent.value?.key === 'proposal_generator') {
+    prompt = `Susun draf ucapan personal beserta opsi hadiah menarik yang kreatif, dan buat proposal terstruktur untuk nasabah ${customerName} dengan produk BNI ${productName}.`
+  } else if (selectedAgent.value?.key === 'relationship_manager') {
+    prompt = `Berikan saran next best action dan draf pesan WhatsApp/Email personal untuk nasabah ${customerName} dengan produk BNI ${productName}.`
+  } else {
+    prompt = `Analisis nasabah ${customerName} untuk produk BNI ${productName}.`
+  }
+  
+  await sendMessage(prompt)
+}
+
 onMounted(async () => {
   await loadAgents()
   await loadAdminData()
   await loadAutomationRules()
+  await loadCustomersAndProducts()
 })
 </script>

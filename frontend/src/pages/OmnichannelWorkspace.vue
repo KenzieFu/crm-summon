@@ -261,6 +261,19 @@
               <div class="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent mb-4" />
               <p class="text-sm font-medium text-slate-700">{{ __('Generating dynamic connection pairing QR Code...') }}</p>
             </template>
+            <template v-else-if="whatsappAlreadyConnected">
+              <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-2xl animate-pulse">
+                ✓
+              </div>
+              <h3 class="text-base font-semibold text-slate-800 mb-2">{{ __('WhatsApp is Already Connected') }}</h3>
+              <p class="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+                {{ __('Your WhatsApp device is currently connected and active. To switch accounts or pair a new device, disconnect the active session first.') }}
+              </p>
+              <div class="flex gap-2">
+                <Button variant="solid" theme="red" :label="__('Disconnect Session')" @click="disconnectWhatsApp" />
+                <Button variant="outline" :label="__('Close')" @click="showWhatsAppConnectDialog = false" />
+              </div>
+            </template>
             <template v-else-if="qrCodeUrl">
               <div class="mb-4 rounded-2xl bg-slate-50 p-4 shadow-inner border border-slate-100 flex items-center justify-center">
                 <img :src="qrCodeUrl" class="h-48 w-48 object-contain transition-all hover:scale-105 duration-300" alt="WhatsApp Connection QR Code" />
@@ -271,6 +284,19 @@
               </p>
               <div class="flex gap-2">
                 <Button variant="solid" :label="__('I have scanned the code')" @click="confirmConnection" />
+                <Button variant="outline" :label="__('Cancel')" @click="showWhatsAppConnectDialog = false" />
+              </div>
+            </template>
+            <template v-else>
+              <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-2xl">
+                ✕
+              </div>
+              <h3 class="text-base font-semibold text-slate-800 mb-2">{{ __('QR Code Not Available') }}</h3>
+              <p class="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+                {{ __('The WhatsApp adapter is initializing or cannot establish a connection. Click the button below to force a reset and regenerate the session.') }}
+              </p>
+              <div class="flex gap-2">
+                <Button variant="solid" theme="red" :label="__('Force Reset Session')" @click="disconnectWhatsApp" />
                 <Button variant="outline" :label="__('Cancel')" @click="showWhatsAppConnectDialog = false" />
               </div>
             </template>
@@ -630,7 +656,18 @@
                 </button>
               </div>
               <div v-if="suggestions.length && !suggestionsLoading" class="omni-suggestions">
-                <button v-for="item in suggestions" :key="item" @click="composer = item">{{ item }}</button>
+                <button
+                  v-for="item in suggestions"
+                  :key="item"
+                  :class="item.startsWith('Draf Disetujui: ') ? 'omni-suggestion-approved' : ''"
+                  @click="applySuggestion(item)"
+                >
+                  <span v-if="item.startsWith('Draf Disetujui: ')" class="omni-suggestion-badge">
+                    <FeatherIcon name="check-circle" class="h-3 w-3 inline mr-1 text-teal-600" />
+                    {{ __('Draf AI Disetujui') }}:
+                  </span>
+                  {{ item.startsWith('Draf Disetujui: ') ? item.substring('Draf Disetujui: '.length) : item }}
+                </button>
               </div>
               <div v-if="suggestionsLoading" class="omni-suggestions-loading">{{ __('Generating suggestions...') }}</div>
               <textarea v-model="composer" :placeholder="showInternalNote ? __('Write an internal note') : __('Type a reply')" />
@@ -791,6 +828,7 @@ const customNumber = ref('')
 const showWhatsAppConnectDialog = ref(false)
 const connecting = ref(false)
 const qrCodeUrl = ref('')
+const whatsappAlreadyConnected = ref(false)
 
 const MESSAGE_LIMIT = 100
 const messageLimit = ref(MESSAGE_LIMIT)
@@ -1049,15 +1087,51 @@ async function openWhatsAppConnect() {
   showWhatsAppConnectDialog.value = true
   connecting.value = true
   qrCodeUrl.value = ''
-  try {
-    const uniqueSession = `fcrm_wa_session_${Math.random().toString(36).substring(2, 15)}`
-    qrCodeUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=059669&data=${encodeURIComponent(uniqueSession)}`
-  } catch (err) {
-    console.error(err)
-    toast.error(__('Failed to generate WhatsApp QR code'))
-  } finally {
-    connecting.value = false
+  whatsappAlreadyConnected.value = false
+  
+  let retries = 0
+  const maxRetries = 10
+  
+  async function fetchQr() {
+    // Stop if user closed the modal
+    if (!showWhatsAppConnectDialog.value) {
+      connecting.value = false
+      return
+    }
+    
+    try {
+      const response = await call('crm.api.whatsapp.get_whatsapp_connection_qr')
+      if (response?.ready) {
+        whatsappAlreadyConnected.value = true
+        connecting.value = false
+        return
+      }
+      if (response?.qr_code_url) {
+        qrCodeUrl.value = response.qr_code_url
+        connecting.value = false
+        return
+      }
+      
+      // If QR not ready yet, retry
+      if (retries < maxRetries) {
+        retries++
+        setTimeout(fetchQr, 2000)
+      } else {
+        throw new Error(response?.message || __('WhatsApp QR is not available yet. Please try again.'))
+      }
+    } catch (err) {
+      console.error(err)
+      if (retries < maxRetries) {
+        retries++
+        setTimeout(fetchQr, 2000)
+      } else {
+        toast.error(err?.messages?.[0] || err.message || __('Failed to load WhatsApp QR code'))
+        connecting.value = false
+      }
+    }
   }
+  
+  await fetchQr()
 }
 
 async function confirmConnection() {
@@ -1066,6 +1140,7 @@ async function confirmConnection() {
     await call('crm.api.whatsapp.connect_whatsapp_channel')
     toast.success(__('WhatsApp Channel connected and activated successfully!'))
     showWhatsAppConnectDialog.value = false
+    whatsappAlreadyConnected.value = false
     await loadConversations()
     if (selectedConversationId.value) {
       await loadConversation(selectedConversationId.value)
@@ -1073,6 +1148,20 @@ async function confirmConnection() {
   } catch (err) {
     toast.error(err?.messages?.[0] || err.message || __('Connection failed'))
   } finally {
+    connecting.value = false
+  }
+}
+
+async function disconnectWhatsApp() {
+  connecting.value = true
+  whatsappAlreadyConnected.value = false
+  qrCodeUrl.value = ''
+  try {
+    await call('crm.api.whatsapp.disconnect_whatsapp')
+    toast.success(__('WhatsApp session disconnected and reset successfully.'))
+    await openWhatsAppConnect()
+  } catch (err) {
+    toast.error(err?.messages?.[0] || err.message || __('Failed to disconnect WhatsApp'))
     connecting.value = false
   }
 }
@@ -1173,6 +1262,14 @@ async function generateSuggestions() {
     toast.error(err?.messages?.[0] || err.message || __('Failed to generate suggestions'))
   } finally {
     suggestionsLoading.value = false
+  }
+}
+
+function applySuggestion(item) {
+  if (item.startsWith('Draf Disetujui: ')) {
+    composer.value = item.substring('Draf Disetujui: '.length)
+  } else {
+    composer.value = item
   }
 }
 
@@ -1845,6 +1942,30 @@ async function verifyComplianceIntegrity() {
   background: #f8fafc;
   text-align: left;
   font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.omni-suggestions button:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.omni-suggestions button.omni-suggestion-approved {
+  border: 1px solid #99f6e4;
+  background: #f0fdfa;
+  color: #0f766e;
+  font-weight: 500;
+}
+
+.omni-suggestions button.omni-suggestion-approved:hover {
+  background: #ccfbf1;
+  border-color: #5eead4;
+}
+
+.omni-suggestion-badge {
+  color: #0d9488;
+  font-weight: bold;
 }
 
 .omni-composer textarea {

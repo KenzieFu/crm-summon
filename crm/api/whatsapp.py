@@ -120,6 +120,20 @@ def _get_whatsapp_js_url():
 	return (frappe.conf.get("whatsapp_api_url") or "").strip().rstrip("/")
 
 
+def _get_whatsapp_js_endpoint(endpoint: str):
+	whatsapp_url = _get_whatsapp_js_url()
+	_validate_whatsapp_js_url(whatsapp_url)
+
+	parsed = urlparse(whatsapp_url)
+	path = parsed.path.rstrip("/")
+	if path.endswith("/send"):
+		path = path[:-5]
+	endpoint = "/" + endpoint.strip("/")
+	if not path.endswith(endpoint):
+		path = f"{path}{endpoint}"
+	return parsed._replace(path=path, params="", query="", fragment="").geturl()
+
+
 def _get_whatsapp_js_headers():
 	token = (frappe.conf.get("whatsapp_api_token") or "").strip()
 	headers = {"Content-Type": "application/json"}
@@ -165,6 +179,19 @@ def _enforce_whatsapp_rate_limit():
 		pass
 
 
+def _get_whatsapp_js_status():
+	import requests
+
+	response = requests.get(_get_whatsapp_js_endpoint("status"), headers=_get_whatsapp_js_headers(), timeout=15)
+	if response.ok:
+		try:
+			return response.json()
+		except Exception:
+			return {"ready": False, "state": response.text[:300]}
+	frappe.log_error(f"WhatsAppWebJS Status Error ({response.status_code}): {response.text}", "WhatsAppWebJS Status Error")
+	frappe.throw(_("Failed to get WhatsAppWebJS status: {0}").format(response.text[:300]))
+
+
 def _post_whatsapp_js(payload):
 	_get_whatsapp_js_url()
 	whatsapp_url = _get_whatsapp_js_url()
@@ -181,6 +208,51 @@ def _post_whatsapp_js(payload):
 			return f"wa_js:{frappe.generate_hash(length=12)}"
 	frappe.log_error(f"WhatsAppWebJS API Error ({response.status_code}): {response.text}", "WhatsAppWebJS Send Error")
 	frappe.throw(_("Failed to send WhatsApp message via WhatsAppWebJS: {0}").format(response.text[:300]))
+
+
+@frappe.whitelist()
+def get_whatsapp_connection_qr():
+	validate_access()
+	import requests
+
+	headers = _get_whatsapp_js_headers()
+	headers["Accept"] = "application/json"
+	status = _get_whatsapp_js_status()
+	if status.get("ready"):
+		return {
+			"ready": True,
+			"state": status.get("state"),
+			"has_qr": False,
+			"qr_code_url": "",
+			"message": _("WhatsAppWebJS client is already connected."),
+		}
+
+	response = requests.get(
+		_get_whatsapp_js_endpoint("qr"),
+		params={"format": "json"},
+		headers=headers,
+		timeout=15,
+	)
+	if response.ok:
+		try:
+			payload = response.json()
+			return {
+				"ready": bool(payload.get("ready")),
+				"state": status.get("state"),
+				"has_qr": bool(payload.get("qr_code_url") or payload.get("has_qr")),
+				"qr_code_url": payload.get("qr_code_url") or "",
+			}
+		except Exception:
+			match = re.search(r"""<img[^>]+src=["']([^"']+)["']""", response.text or "", re.I)
+			if match:
+				return {
+					"ready": False,
+					"state": status.get("state"),
+					"has_qr": True,
+					"qr_code_url": match.group(1),
+				}
+	frappe.log_error(f"WhatsAppWebJS QR Error ({response.status_code}): {response.text}", "WhatsAppWebJS QR Error")
+	frappe.throw(_("WhatsApp QR is not available yet. Restart the WhatsAppWebJS service or wait until it emits a QR code."))
 
 
 @frappe.whitelist()
@@ -464,6 +536,10 @@ def add_roles():
 
 @frappe.whitelist()
 def connect_whatsapp_channel():
+	status = _get_whatsapp_js_status()
+	if not status.get("ready"):
+		frappe.throw(_("WhatsAppWebJS client is not ready yet. Scan the QR code and wait for the adapter to become ready."))
+
 	account_name = "WhatsApp Production"
 	
 	if not frappe.db.exists("CRM Omnichannel Channel Account", account_name):
@@ -486,3 +562,33 @@ def connect_whatsapp_channel():
 		
 	frappe.db.commit()
 	return {"message": "Success", "account": doc.as_dict()}
+
+
+@frappe.whitelist()
+def disconnect_whatsapp():
+	validate_access()
+	import requests
+
+	headers = _get_whatsapp_js_headers()
+	try:
+		response = requests.post(
+			_get_whatsapp_js_endpoint("logout"),
+			headers=headers,
+			timeout=15,
+		)
+		if not response.ok:
+			frappe.log_error(f"WhatsAppWebJS Logout Error ({response.status_code}): {response.text}", "WhatsAppWebJS Logout Error")
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "WhatsApp disconnect failed")
+		frappe.throw(_("Error connecting to WhatsAppWebJS server for logout: {0}").format(str(e)))
+
+	account_name = "WhatsApp Production"
+	if frappe.db.exists("CRM Omnichannel Channel Account", account_name):
+		doc = frappe.get_doc("CRM Omnichannel Channel Account", account_name)
+		doc.status = "Inactive"
+		doc.credentials_configured = 0
+		doc.save(ignore_permissions=True)
+		frappe.db.commit()
+
+	return {"message": "Success"}
+
