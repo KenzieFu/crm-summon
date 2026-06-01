@@ -39,9 +39,10 @@
               :key="link.label"
               :icon="link.icon"
               :label="__(link.label)"
-              :to="link.to"
-              :href="link.href"
+              :to="link.pwaInstall ? null : link.to"
+              :href="link.pwaInstall ? '' : link.href"
               :isCollapsed="isSidebarCollapsed"
+              :beforeNavigate="link.pwaInstall ? () => showPwaInstallModal = true : null"
               class="mx-2 my-[1.5px]"
             >
               <template #right>
@@ -113,10 +114,6 @@
           :isSidebarCollapsed="isSidebarCollapsed"
           :afterUpgrade="() => capture('upgrade_plan_from_trial_banner')"
         />
-        <GettingStartedBanner
-          v-if="!isOnboardingStepsCompleted"
-          :isSidebarCollapsed="isSidebarCollapsed"
-        />
       </div>
       <SidebarLink
         v-if="isManager() && isDemoDataCreated"
@@ -135,6 +132,7 @@
         :isCollapsed="isSidebarCollapsed"
         @click="
           () => {
+            showHelpCenter = true
             showHelpModal = minimize ? true : !showHelpModal
             minimize = !showHelpModal
           }
@@ -160,22 +158,14 @@
         </template>
       </SidebarLink>
     </div>
-    <Settings />
     <HelpModal
       v-if="showHelpModal"
       v-model="showHelpModal"
       v-model:articles="articles"
       :logo="CRMLogo"
-      :afterSkip="(step) => capture('onboarding_step_skipped_' + step)"
-      :afterSkipAll="() => capture('onboarding_steps_skipped')"
-      :afterReset="(step) => capture('onboarding_step_reset_' + step)"
-      :afterResetAll="() => capture('onboarding_steps_reset')"
       docsLink="/crm"
     />
-    <IntermediateStepModal
-      v-model="showIntermediateModal"
-      :currentStep="currentStep"
-    />
+    <PwaInstallModal v-model="showPwaInstallModal" />
   </div>
 </template>
 
@@ -185,15 +175,9 @@ import BrushCleaningIcon from '~icons/lucide/brush-cleaning'
 import LucideLayoutDashboard from '~icons/lucide/layout-dashboard'
 import LucideUserRoundSearch from '~icons/lucide/user-round-search'
 import CRMLogo from '@/components/Icons/CRMLogo.vue'
-import InviteIcon from '@/components/Icons/InviteIcon.vue'
-import ConvertIcon from '@/components/Icons/ConvertIcon.vue'
-import CommentIcon from '@/components/Icons/CommentIcon.vue'
-import EmailIcon from '@/components/Icons/EmailIcon.vue'
-import StepsIcon from '@/components/Icons/StepsIcon.vue'
 import CollapsibleSection from '@/components/CollapsibleSection.vue'
 import PinIcon from '@/components/Icons/PinIcon.vue'
 import UserDropdown from '@/components/UserDropdown.vue'
-import SquareAsterisk from '@/components/Icons/SquareAsterisk.vue'
 import LeadsIcon from '@/components/Icons/LeadsIcon.vue'
 import DealsIcon from '@/components/Icons/DealsIcon.vue'
 import ContactsIcon from '@/components/Icons/ContactsIcon.vue'
@@ -206,44 +190,37 @@ import CollapseSidebar from '@/components/Icons/CollapseSidebar.vue'
 import NotificationsIcon from '@/components/Icons/NotificationsIcon.vue'
 import HelpIcon from '@/components/Icons/HelpIcon.vue'
 import SidebarLink from '@/components/SidebarLink.vue'
-import Settings from '@/components/Settings/Settings.vue'
+import PwaInstallModal from '@/components/Modals/PwaInstallModal.vue'
 import { viewsStore } from '@/stores/views'
 import { summonModules } from '@/data/summonModules'
 import { unreadNotificationsCount } from '@/stores/notifications'
 import { usersStore } from '@/stores/users'
-import { sessionStore } from '@/stores/session'
-import { showSettings, activeSettingsPage } from '@/composables/settings'
-import { showChangePasswordModal } from '@/composables/modals'
-import { useBroadcast } from '@/composables/useBroadcast.js'
-import { FeatherIcon, call } from 'frappe-ui'
+import { FeatherIcon } from 'frappe-ui'
 import {
   SignupBanner,
   TrialBanner,
   HelpModal,
-  GettingStartedBanner,
   useOnboarding,
   showHelpModal,
+  showHelpCenter,
   minimize,
-  IntermediateStepModal,
   useTelemetry,
 } from 'frappe-ui/frappe'
-import router from '@/router'
 import { useStorage } from '@vueuse/core'
 import { useDemoData } from '@/composables/demoData'
-import { ref, reactive, computed, markRaw, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const { getPinnedViews, getPublicViews } = viewsStore()
 const { capture } = useTelemetry()
 const { clearDemoData, isDemoDataCreated } = useDemoData()
-const { send } = useBroadcast()
 
 const isSidebarCollapsed = useStorage('isSidebarCollapsed', false)
+const showPwaInstallModal = ref(false)
 
 const isFCSite = ref(window.is_fc_site)
 const isDemoSite = ref(window.is_demo_site)
 
 // ─── Parent Route Groups ─────────────────────────────────
-// Each parent route group has its own dashboard + sub-items
 
 const crmCoreLinks = [
   {
@@ -261,6 +238,7 @@ const crmCoreLinks = [
     icon: LeadsIcon,
     to: 'Leads',
   },
+
   {
     label: 'Deals',
     icon: DealsIcon,
@@ -297,29 +275,23 @@ const crmCoreLinks = [
     to: 'Call Logs',
   },
   {
-    label: 'AI Desk',
+    label: 'AI Agent Center',
     icon: AIDeskIcon,
-    to: 'AI Desk',
+    to: 'AI Agent Center',
   },
 ]
 
 // Build module groups for non-CRM-Core parent routes
-function buildModuleGroupLinks(groupName, dashboardRouteName) {
-  const dashboardLink = {
-    label: 'Dashboard',
-    icon: LucideLayoutDashboard,
-    to: dashboardRouteName,
-  }
-  const moduleLinks = summonModules
+function buildModuleGroupLinks(groupName) {
+  return summonModules
     .filter((m) => m.group === groupName)
     .map((m) => ({
       label: m.label,
       icon: m.icon,
-      // Use internal route name when available, otherwise fall back to href
       ...(m.routeName ? { to: m.routeName } : { href: m.href }),
       status: m.status,
+      pwaInstall: m.label === 'Mobile RM Workspace',
     }))
-  return [dashboardLink, ...moduleLinks]
 }
 
 const parentRouteGroups = computed(() => [
@@ -331,22 +303,22 @@ const parentRouteGroups = computed(() => [
   {
     name: 'Lending & Risk',
     opened: false,
-    views: buildModuleGroupLinks('Lending & Risk', 'Lending Dashboard'),
+    views: buildModuleGroupLinks('Lending & Risk'),
   },
   {
     name: 'Operations',
     opened: false,
-    views: buildModuleGroupLinks('Operations', 'Operations Dashboard'),
+    views: buildModuleGroupLinks('Operations'),
   },
   {
     name: 'Admin & Platform',
     opened: false,
-    views: buildModuleGroupLinks('Admin & Platform', 'Admin Dashboard'),
+    views: buildModuleGroupLinks('Admin & Platform'),
   },
   {
     name: 'Channels & Portal',
     opened: false,
-    views: buildModuleGroupLinks('Channels & Portal', 'Channels Dashboard'),
+    views: buildModuleGroupLinks('Channels & Portal'),
   },
 ])
 
@@ -408,215 +380,13 @@ function getIcon(routeName, icon) {
 }
 
 // onboarding - disabled, always mark as completed
-const { user } = sessionStore()
 const { users, isManager } = usersStore()
-const { setUp } = useOnboarding('frappecrm')
-const isOnboardingStepsCompleted = computed(() => true)
-
-async function getFirstLead() {
-  let firstLead = localStorage.getItem('firstLead' + user)
-  if (firstLead) return firstLead
-  return await call('crm.api.onboarding.get_first_lead')
-}
-
-async function getFirstDeal() {
-  let firstDeal = localStorage.getItem('firstDeal' + user)
-  if (firstDeal) return firstDeal
-  return await call('crm.api.onboarding.get_first_deal')
-}
-
-const showIntermediateModal = ref(false)
-const currentStep = ref({})
-
-const steps = reactive([
-  {
-    name: 'setup_your_password',
-    title: __('Setup your password'),
-    icon: markRaw(SquareAsterisk),
-    completed: false,
-    onClick: () => {
-      minimize.value = true
-      showChangePasswordModal.value = true
-      capture('onboarding_step_clicked_setup_password')
-    },
-  },
-  {
-    name: 'create_first_lead',
-    title: __('Create your first lead'),
-    icon: markRaw(LeadsIcon),
-    completed: false,
-    onClick: () => {
-      minimize.value = true
-      router.push({ name: 'Leads' })
-      send('trigger_lead_create', true)
-      capture('onboarding_step_clicked_create_first_lead')
-    },
-  },
-  {
-    name: 'invite_your_team',
-    title: __('Invite your team'),
-    icon: markRaw(InviteIcon),
-    completed: false,
-    onClick: () => {
-      minimize.value = true
-      showSettings.value = true
-      activeSettingsPage.value = 'Invite User'
-      capture('onboarding_step_clicked_invite_your_team')
-    },
-    condition: () => isManager(),
-  },
-  {
-    name: 'convert_lead_to_deal',
-    title: __('Convert lead to deal'),
-    icon: markRaw(ConvertIcon),
-    completed: false,
-    dependsOn: 'create_first_lead',
-    onClick: async () => {
-      minimize.value = true
-      capture('onboarding_step_clicked_convert_lead_to_deal')
-      currentStep.value = {
-        title: __('Convert lead to deal'),
-        buttonLabel: __('Convert'),
-        videoURL: '/assets/crm/videos/convertToDeal.mov',
-        onClick: async () => {
-          showIntermediateModal.value = false
-          currentStep.value = {}
-
-          let lead = await getFirstLead()
-          if (lead) {
-            router.push({ name: 'Lead', params: { leadId: lead } })
-          } else {
-            router.push({ name: 'Leads' })
-          }
-        },
-      }
-      showIntermediateModal.value = true
-    },
-  },
-  {
-    name: 'create_first_task',
-    title: __('Create your first task'),
-    icon: markRaw(TaskIcon),
-    completed: false,
-    onClick: async () => {
-      minimize.value = true
-      let deal = await getFirstDeal()
-      capture('onboarding_step_clicked_create_first_task')
-
-      if (deal) {
-        router.push({
-          name: 'Deal',
-          params: { dealId: deal },
-          hash: '#tasks',
-        })
-      } else {
-        router.push({ name: 'Tasks' })
-      }
-    },
-  },
-  {
-    name: 'create_first_note',
-    title: __('Create your first note'),
-    icon: markRaw(NoteIcon),
-    completed: false,
-    onClick: async () => {
-      minimize.value = true
-      let deal = await getFirstDeal()
-      capture('onboarding_step_clicked_create_first_note')
-
-      if (deal) {
-        router.push({
-          name: 'Deal',
-          params: { dealId: deal },
-          hash: '#notes',
-        })
-      } else {
-        router.push({ name: 'Notes' })
-      }
-    },
-  },
-  {
-    name: 'add_first_comment',
-    title: __('Add your first comment'),
-    icon: markRaw(CommentIcon),
-    completed: false,
-    dependsOn: 'create_first_lead',
-    onClick: async () => {
-      minimize.value = true
-      let deal = await getFirstDeal()
-      capture('onboarding_step_clicked_add_first_comment')
-
-      if (deal) {
-        router.push({
-          name: 'Deal',
-          params: { dealId: deal },
-          hash: '#comments',
-        })
-      } else {
-        router.push({ name: 'Leads' })
-      }
-    },
-  },
-  {
-    name: 'send_first_email',
-    title: __('Send email'),
-    icon: markRaw(EmailIcon),
-    completed: false,
-    dependsOn: 'create_first_lead',
-    onClick: async () => {
-      minimize.value = true
-      let deal = await getFirstDeal()
-      capture('onboarding_step_clicked_send_first_email')
-
-      if (deal) {
-        router.push({
-          name: 'Deal',
-          params: { dealId: deal },
-          hash: '#emails',
-        })
-      } else {
-        router.push({ name: 'Leads' })
-      }
-    },
-  },
-  {
-    name: 'change_deal_status',
-    title: __('Change deal status'),
-    icon: markRaw(StepsIcon),
-    completed: false,
-    dependsOn: 'convert_lead_to_deal',
-    onClick: async () => {
-      minimize.value = true
-      capture('onboarding_step_clicked_change_deal_status')
-
-      currentStep.value = {
-        title: __('Change deal status'),
-        buttonLabel: __('Change'),
-        videoURL: '/assets/crm/videos/changeDealStatus.mov',
-        onClick: async () => {
-          showIntermediateModal.value = false
-          currentStep.value = {}
-
-          let deal = await getFirstDeal()
-          if (deal) {
-            router.push({
-              name: 'Deal',
-              params: { dealId: deal },
-              hash: '#activity',
-            })
-          } else {
-            router.push({ name: 'Leads' })
-          }
-        },
-      }
-      showIntermediateModal.value = true
-    },
-  },
-])
+const { isOnboardingStepsCompleted, setUp } = useOnboarding('frappecrm')
 
 onMounted(async () => {
   await users.promise
 
+  const steps = []
   const filteredSteps = steps.filter((step) => {
     if (step.condition) {
       return step.condition()
@@ -625,6 +395,7 @@ onMounted(async () => {
   })
 
   setUp(filteredSteps)
+  isOnboardingStepsCompleted.value = true
 })
 
 // help center

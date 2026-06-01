@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full bg-slate-50 font-sans">
-    <div v-if="!routeCustomer" class="w-80 border-r border-slate-200 bg-white flex flex-col shrink-0">
+    <div v-if="!routeCustomer && (!isMobile || !selectedCustomerName)" class="w-full md:w-80 border-r border-slate-200 bg-white flex flex-col shrink-0 h-full">
       <div class="p-4 border-b border-slate-200 space-y-3">
         <div>
           <h2 class="text-lg font-bold text-slate-800">{{ __('Customer Directory') }}</h2>
@@ -60,18 +60,18 @@
       </div>
     </div>
 
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div v-if="!isMobile || selectedCustomerName" class="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
       <div v-if="!selectedCustomer" class="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
         <div class="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
           <FeatherIcon name="user" class="h-10 w-10 text-slate-300" />
         </div>
         <h3 class="text-lg font-semibold text-slate-700">{{ __('No Customer Selected') }}</h3>
         <p class="text-sm text-slate-500 mt-1 max-w-sm text-center">
-          {{ __('Select a customer to manage the complete Customer 360 UAT workspace.') }}
+          {{ __('Select a customer to manage the complete production-safe Customer 360 workspace.') }}
         </p>
       </div>
 
-      <div v-else class="flex-1 flex flex-col overflow-hidden">
+      <div v-else class="flex-1 flex flex-col overflow-y-auto">
         <div class="bg-white border-b border-slate-200 p-6 flex flex-col xl:flex-row xl:items-center justify-between gap-6 shrink-0 shadow-sm">
           <div class="flex items-center gap-4 min-w-0">
             <div class="w-16 h-16 rounded-xl bg-teal-600 text-white flex items-center justify-center font-black text-2xl shadow-md shadow-teal-600/10 shrink-0">
@@ -93,12 +93,24 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <Button v-if="isMobile && !routeCustomer" variant="outline" :label="__('Back to Directory')" @click="selectedCustomerName = ''; selectedCustomer = null">
+              <template #prefix><FeatherIcon name="chevron-left" class="h-4 w-4" /></template>
+            </Button>
             <Button v-if="routeCustomer" variant="outline" :label="__('Back to List')" @click="goToCustomerList">
               <template #prefix><FeatherIcon name="arrow-left" class="h-4 w-4" /></template>
             </Button>
-            <Button variant="solid" :label="__('New Application')" @click="openForm('creditApplication')">
-              <template #prefix><FeatherIcon name="file-plus" class="h-4 w-4" /></template>
-            </Button>
+            <div class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-black"
+                :class="dataQuality.score >= 80 ? 'border-green-200 bg-green-50 text-green-700' : dataQuality.score >= 60 ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-red-200 bg-red-50 text-red-700'"
+              >
+                {{ dataQuality.score || 0 }}
+              </div>
+              <div class="text-left min-w-0">
+                <div class="text-[11px] font-semibold text-slate-700 leading-tight">{{ __('Data Quality') }}</div>
+                <div class="text-[10px] text-slate-500 leading-tight">{{ (dataQuality.missing_required_fields || []).length }} missing</div>
+              </div>
+            </div>
             <Button variant="outline" :label="__('Communicate')" @click="openForm('communication')" />
             <Button variant="outline" :label="__('Export Profile')" @click="showExportDialog = true" />
             <Button variant="outline" :label="__('Edit')" @click="showProfileEdit = true" />
@@ -114,6 +126,8 @@
           <StatCard :label="__('Missed Payments')" :value="String(summary.missed_payments || 0)" :detail="`${summary.transactions || 0} transactions`" icon="repeat" tone="red" />
         </div>
 
+
+
         <div class="px-6 pt-4 shrink-0">
           <div class="flex border-b border-slate-200 gap-6 overflow-x-auto">
             <button
@@ -128,22 +142,54 @@
           </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-6 min-h-0">
+        <div class="p-6">
           <div v-if="customer360.loading" class="text-sm text-slate-500">{{ __('Loading customer profile...') }}</div>
 
           <div v-else-if="activeTab === 'overview'" class="space-y-6">
             <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <Panel class="xl:col-span-2" :title="__('AI Customer Summary')" icon="cpu">
-                <textarea
-                  v-model="summaryText"
-                  rows="6"
-                  class="w-full p-4 bg-teal-50/30 border border-teal-100 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-teal-400"
-                />
+                <div class="relative">
+                  <div v-if="!editingSummary"
+                    class="min-h-[150px] w-full p-4 bg-teal-50/30 border border-teal-100 rounded-lg text-sm text-slate-700 cursor-pointer hover:border-teal-300 overflow-auto"
+                    style="min-height: 144px"
+                    @click="editingSummary = true"
+                  >
+                    <StructuredResponseCard :response="summaryStructured" :fallback="summaryText || __('Click to edit or generate a summary...')" compact />
+                  </div>
+                  <textarea
+                    v-else
+                    v-model="summaryText"
+                    rows="9"
+                    class="w-full p-4 bg-white border border-teal-400 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-teal-500 font-mono"
+                    @input="summaryStructured = null; summaryStructuredCustomer = null"
+                    @blur="editingSummary = false"
+                    ref="summaryTextareaRef"
+                  />
+                  <button
+                    class="absolute top-2 right-2 rounded-md bg-white border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:border-teal-400 hover:text-teal-700"
+                    @click="editingSummary = !editingSummary"
+                  >
+                    {{ editingSummary ? __('Preview') : __('Edit') }}
+                  </button>
+                </div>
                 <div class="mt-3 flex flex-wrap justify-between items-center gap-2 text-xs text-slate-400">
-                  <span>{{ __('5-bullet summary generated from persisted Customer 360 records') }}</span>
+                  <span>{{ summaryMetaText }}</span>
                   <div class="flex gap-2">
+                    <select v-model="summaryLength" class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 focus:outline-none focus:border-teal-500">
+                      <option>TL;DR</option>
+                      <option>Standard</option>
+                      <option>Detailed</option>
+                    </select>
                     <Button variant="subtle" size="sm" :label="__('Refresh')" @click="reloadCustomer360" />
+                    <Button variant="outline" size="sm" :label="__('Generate with RAG')" :loading="isGeneratingSummary" @click="generateCustomerSummary" />
                     <Button variant="solid" size="sm" :label="__('Save Summary')" @click="saveCustomerSummary" />
+                  </div>
+                </div>
+                <div v-if="summarySources.length" class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div v-for="source in summarySources" :key="source.id" class="rounded-lg border border-teal-100 bg-white p-3">
+                    <div class="text-xs font-bold text-slate-800 truncate">{{ source.title }}</div>
+                    <div class="mt-1 text-[11px] text-slate-500">{{ source.doctype }} · {{ source.docname }}</div>
+                    <p class="mt-2 line-clamp-3 text-xs leading-5 text-slate-600">{{ source.excerpt }}</p>
                   </div>
                 </div>
               </Panel>
@@ -170,22 +216,25 @@
             <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
               <Panel :title="__('Activities')" icon="calendar">
                 <div class="flex flex-wrap gap-2 mb-4">
-                  <Button size="sm" variant="solid" :label="__('Task')" @click="openForm('task')" />
-                  <Button size="sm" variant="outline" :label="__('Note')" @click="openForm('note')" />
-                  <Button size="sm" variant="outline" :label="__('Event')" @click="openForm('event')" />
+                  <Button size="sm" :variant="activityFilter === 'task' ? 'solid' : 'outline'" :label="__('Task')" @click="activityFilter = activityFilter === 'task' ? 'all' : 'task'" />
+                  <Button size="sm" :variant="activityFilter === 'note' ? 'solid' : 'outline'" :label="__('Note')" @click="activityFilter = activityFilter === 'note' ? 'all' : 'note'" />
+                  <Button size="sm" :variant="activityFilter === 'event' ? 'solid' : 'outline'" :label="__('Event')" @click="activityFilter = activityFilter === 'event' ? 'all' : 'event'" />
+                  <Button size="sm" variant="outline" :label="__('+')" @click="openForm('task')" />
+                  <Button size="sm" variant="outline" :label="__('+ Note')" @click="openForm('note')" />
+                  <Button size="sm" variant="outline" :label="__('+ Event')" @click="openForm('event')" />
                 </div>
-                <ActivityList :tasks="tasks" :notes="notes" :events="events" @toggle-task="toggleTask" />
+                <ActivityList :tasks="tasks" :notes="notes" :events="events" :filter="activityFilter" @toggle-task="toggleTask" />
               </Panel>
 
               <Panel :title="__('Relationship Graph')" icon="share-2">
                 <div class="mb-3 flex justify-between gap-2">
-                  <FormSelect v-model="graphFilter" label="Filter" :options="['All', 'Shareholder', 'Director', 'Group Company', 'RM', 'UBO']" compact />
+                  <FormSelect v-model="graphFilter" label="Filter" :options="graphFilterOptions" compact />
                   <div class="flex items-end gap-1">
                     <Button size="sm" variant="outline" label="+" @click="graphZoom += 0.1" />
                     <Button size="sm" variant="outline" label="-" @click="graphZoom = Math.max(0.8, graphZoom - 0.1)" />
                   </div>
                 </div>
-                <RelationshipGraph :customer="selectedCustomer" :relationships="filteredGraphRelationships" :zoom="graphZoom" @open-node="openRelatedCustomer" />
+                <RelationshipGraph :customer="selectedCustomer" :graph="filteredRelationshipGraph" :zoom="graphZoom" @open-node="openRelatedCustomer" />
               </Panel>
 
               <Panel :title="__('Customer History Timeline')" icon="clock">
@@ -200,7 +249,7 @@
           <div v-else-if="activeTab === 'profile'" class="space-y-6">
             <Panel :title="__('Personal / Company Data')" icon="user-check">
               <template #actions>
-                <Button size="sm" variant="solid" :label="__('Edit Profile')" @click="showProfileEdit = true" />
+                <Button size="sm" variant="solid" :label="__('Edit Profile')" @click="openForm('kyc', kyc || {})" />
               </template>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <FieldDisplay label="Name" :value="selectedCustomer.customer_name" />
@@ -230,29 +279,23 @@
           </div>
 
           <div v-else-if="activeTab === 'ownership'" class="space-y-6">
+            <div class="flex justify-end">
+              <Button size="sm" variant="solid" :label="__('Add Relationship')" @click="openForm('relationship')" />
+            </div>
             <Panel :title="__('Shareholders')" icon="pie-chart">
-              <template #actions>
-                <Button size="sm" variant="solid" :label="__('Add Shareholder')" @click="openForm('relationship', { relationship_type: 'Shareholder' })" />
-              </template>
               <div class="mb-4 flex flex-wrap items-center gap-3">
                 <Badge :label="`${summary.shareholder_total || 0}% ownership captured`" :theme="summary.shareholder_balanced ? 'green' : 'orange'" />
-                <span class="text-xs text-slate-500">{{ __('UAT requires total shareholders to equal 100%.') }}</span>
+                <span class="text-xs text-slate-500">{{ __('Production control requires captured shareholders to equal 100%.') }}</span>
               </div>
               <OwnershipChart :shareholders="shareholders" />
               <SimpleTable :headers="['Shareholder', 'Ownership %', 'UBO', 'Linked Profile']" :rows="shareholders" :columns="['related_party', 'ownership_percent', 'is_ubo', 'related_customer']" :edit="(row) => openForm('relationship', row)" />
             </Panel>
 
             <Panel :title="__('Directors')" icon="briefcase">
-              <template #actions>
-                <Button size="sm" variant="solid" :label="__('Add Director')" @click="openForm('relationship', { relationship_type: 'Director' })" />
-              </template>
               <SimpleTable :headers="['Name', 'Role', 'ID', 'LinkedIn', 'Tenure', 'AML/PEP', 'Background']" :rows="directors" :columns="['related_party', 'position', 'director_id', 'linkedin_url', 'tenure_start', 'aml_pep_status', 'background_check_status']" :edit="(row) => openForm('relationship', row)" :action="runAmlCheck" action-label="AML/PEP" />
             </Panel>
 
             <Panel :title="__('Related Entities')" icon="git-branch">
-              <template #actions>
-                <Button size="sm" variant="solid" :label="__('Add Related Entity')" @click="openForm('relationship', { relationship_type: 'Group Company' })" />
-              </template>
               <SimpleTable :headers="['Entity', 'Type', 'Group Exposure', 'Linked Customer']" :rows="relatedEntities" :columns="['related_party', 'relationship_type', 'exposure', 'related_customer']" currency-column="exposure" :edit="(row) => openForm('relationship', row)" :action="openRelatedCustomer" action-label="Open" />
             </Panel>
           </div>
@@ -263,7 +306,7 @@
                 <Button size="sm" variant="outline" :label="__('Export PDF')" @click="showExportDialog = true" />
               </template>
               <div class="mb-3 max-w-xs">
-                <FormInput v-model="productFilter" label="Filter Product Type" />
+                <FormSelect v-model="productFilter" label="Filter Product Type" :options="productTypeOptions" />
               </div>
               <SimpleTable :headers="['Facility', 'Product', 'Status', 'Repayment', 'Default']" :rows="filteredFacilities" :columns="['facility_type', 'product_type', 'status', 'repayment_behavior', 'default_flag']" :edit="(row) => openForm('facility', row)" />
             </Panel>
@@ -410,6 +453,11 @@
               <SimpleTable class="mt-4" :headers="['Source', 'Target', 'Status', 'Old IDs']" :rows="mergeAudits" :columns="['source_customer', 'target_customer', 'status', 'old_ids']" />
             </Panel>
           </div>
+
+          <!-- Chat Tab -->
+          <div v-else-if="activeTab === 'chat'" class="min-h-[500px] flex flex-col">
+            <ChatPanel doctype="Customer" :docname="selectedCustomerName" class="flex h-full flex-col rounded-lg border border-slate-200 bg-white overflow-hidden" />
+          </div>
         </div>
       </div>
     </div>
@@ -432,10 +480,10 @@
     <Dialog v-model="showProfileEdit" :options="{ title: __('Edit Basic Profile') }">
       <template #body-content>
         <div class="space-y-4 pt-3">
-          <FormInput v-model="profileForm.customer_name" label="Customer Name" />
+          <FormInput v-model="profileForm.customer_name" label="Customer Name" :error="profileErrors.customer_name" />
           <FormSelect v-model="profileForm.customer_type" label="Customer Type" :options="['Company', 'Individual']" />
-          <FormInput v-model="profileForm.tax_id" label="Tax ID / NPWP" />
-          <FormInput v-model="profileForm.website" label="Website" />
+          <FormInput v-model="profileForm.tax_id" label="Tax ID / NPWP" :error="profileErrors.tax_id" />
+          <FormInput v-model="profileForm.website" label="Website" :error="profileErrors.website" />
         </div>
       </template>
       <template #actions>
@@ -446,38 +494,43 @@
       </template>
     </Dialog>
 
-    <Dialog v-model="showExportDialog" :options="{ title: __('Export Customer Profile') }">
+    <Dialog v-model="showExportDialog" :options="{ title: __('Export Customer Profile'), size: 'md' }">
       <template #body-content>
         <div class="space-y-4 pt-3">
-          <FormSelect v-model="exportForm.scope" label="Scope" :options="['Full Profile', 'Current Tab', 'Profile & KYC', 'Financing', 'Risk', 'Documents']" />
-          <FormInput v-model="exportForm.watermark" label="Watermark" />
-          <FormInput v-model="exportForm.password" label="PDF Password" type="password" />
-          <div class="rounded-lg border border-amber-100 bg-amber-50 p-3 text-xs text-amber-700">
-            {{ __('Email/PDF renderer is captured as an export request record until the production adapter is configured.') }}
-          </div>
+          <FormSelect v-model="exportForm.format" label="Export Format" :options="['PDF Report', 'Excel Spreadsheet']" />
+          <FormSelect v-model="exportForm.scope" label="Scope / Content" :options="['Full Profile', 'Current Tab', 'Profile & KYC', 'Financing', 'Risk', 'Documents']" />
+          <FormInput v-model="exportForm.watermark" label="Watermark Text" />
+          <FormInput v-model="exportForm.password" label="PDF Password (Optional)" type="password" />
         </div>
       </template>
       <template #actions>
         <div class="flex gap-2 justify-end">
           <Button variant="outline" :label="__('Cancel')" @click="showExportDialog = false" />
-          <Button variant="solid" :label="__('Create Export Request')" @click="exportProfile" />
+          <Button variant="solid" :label="exportForm.format === 'PDF Report' ? __('Download PDF') : __('Download Excel')" @click="exportProfile" />
         </div>
       </template>
     </Dialog>
 
-    <Dialog v-model="showDynamicForm" :options="{ title: dynamicForm.title }">
+    <Dialog v-model="showDynamicForm" :options="dynamicForm.options">
       <template #body-content>
-        <div class="space-y-4 pt-3">
+        <div :class="dynamicForm.fields.length > 5 ? 'grid grid-cols-1 md:grid-cols-2 gap-4 pt-3' : 'space-y-4 pt-3'">
           <template v-for="field in dynamicForm.fields" :key="field.fieldname">
-            <FormSelect v-if="field.type === 'select'" v-model="dynamicForm.doc[field.fieldname]" :label="field.label" :options="field.options" />
-            <FormTextarea v-else-if="field.type === 'textarea'" v-model="dynamicForm.doc[field.fieldname]" :label="field.label" />
+            <input v-if="field.type === 'hidden'" v-model="dynamicForm.doc[field.fieldname]" type="hidden" />
+            <FormSelect v-else-if="field.type === 'select'" v-model="dynamicForm.doc[field.fieldname]" :label="field.label" :options="field.options" :error="dynamicFormErrors[field.fieldname]" />
+            <Link v-else-if="field.type === 'link'" v-model="dynamicForm.doc[field.fieldname]" :doctype="field.options" :filters="field.filters || []" :label="field.label" :placeholder="field.placeholder || __('Search {0}', [field.label])" />
+            <label v-else-if="field.type === 'currency'" class="flex flex-col gap-1">
+              <span class="text-xs text-ink-gray-5">{{ field.label }}</span>
+              <RupiahInput v-model="dynamicForm.doc[field.fieldname]" />
+              <span v-if="dynamicFormErrors[field.fieldname]" class="text-xs text-red-600">{{ dynamicFormErrors[field.fieldname] }}</span>
+            </label>
+            <FormTextarea v-else-if="field.type === 'textarea'" v-model="dynamicForm.doc[field.fieldname]" :label="field.label" :class="dynamicForm.fields.length > 5 ? 'md:col-span-2' : ''" :error="dynamicFormErrors[field.fieldname]" />
             <FormCheckbox v-else-if="field.type === 'checkbox'" v-model="dynamicForm.doc[field.fieldname]" :label="field.label" />
-            <FormInput v-else v-model="dynamicForm.doc[field.fieldname]" :label="field.label" :type="field.type || 'text'" />
+            <FormInput v-else v-model="dynamicForm.doc[field.fieldname]" :label="field.label" :type="field.type || 'text'" :error="dynamicFormErrors[field.fieldname]" />
           </template>
         </div>
       </template>
       <template #actions>
-        <div class="flex gap-2 justify-end">
+        <div class="flex gap-2 justify-end border-t border-slate-100 pt-4 mt-2">
           <Button variant="outline" :label="__('Cancel')" @click="showDynamicForm = false" />
           <Button variant="solid" :label="dynamicForm.doc.name ? __('Update') : __('Save')" :loading="insertResource.loading" @click="submitDynamicForm" />
         </div>
@@ -488,8 +541,13 @@
 
 <script setup>
 import { Button, FeatherIcon, Badge, Dialog, usePageMeta, createListResource, createResource, toast, call } from 'frappe-ui'
-import { computed, h, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ChatPanel from '@/components/ChatPanel.vue'
+import Link from '@/components/Controls/Link.vue'
+import RupiahInput from '@/components/Controls/RupiahInput.vue'
+import StructuredResponseCard from '@/components/AI/StructuredResponseCard.vue'
+import html2pdf from 'html2pdf.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -502,24 +560,284 @@ const showProfileEdit = ref(false)
 const showDynamicForm = ref(false)
 const showExportDialog = ref(false)
 const summaryText = ref('')
+const summaryStructured = ref(null)
+const summaryStructuredCustomer = ref(null)
+const summaryLength = ref('Standard')
+const summarySources = ref([])
+const isGeneratingSummary = ref(false)
 const globalResults = ref([])
 const recentSearches = ref(JSON.parse(localStorage.getItem('customer360RecentSearches') || '[]'))
+const activityFilter = ref('all')
 const graphFilter = ref('All')
 const graphZoom = ref(1)
 const timelineFilter = ref('All')
-const productFilter = ref('')
+const productFilter = ref('All')
 const documentSearch = ref('')
 const communicationFilter = ref('All')
 const transactionFrom = ref('')
 const transactionTo = ref('')
+const editingSummary = ref(false)
+const summaryTextareaRef = ref(null)
 let searchTimer = null
 const routeCustomer = computed(() => String(route.params.customer || ''))
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768
+}
 
 const newCustomer = reactive({ customer_name: '', customer_type: 'Company' })
 const profileForm = reactive({ customer_name: '', customer_type: 'Company', tax_id: '', website: '' })
-const exportForm = reactive({ scope: 'Full Profile', watermark: 'BNI CRM Confidential', password: '' })
+const exportForm = reactive({ scope: 'Full Profile', watermark: 'BNI CRM Confidential', password: '', format: 'PDF Report' })
 const mergeForm = reactive({ target: '', field_map_json: '{}' })
-const dynamicForm = reactive({ key: '', title: '', doctype: '', doc: {}, fields: [] })
+const dynamicForm = reactive({ key: '', title: '', doctype: '', doc: {}, fields: [], options: {} })
+
+// Validation State for basic profile edit and dynamic forms (KYC)
+const profileErrors = reactive({ customer_name: '', tax_id: '', website: '' })
+const dynamicFormErrors = reactive({})
+
+function formatNPWP(value) {
+  if (!value) return ''
+  const digits = value.replace(/\D/g, '')
+  if (digits.length <= 15) {
+    let formatted = ''
+    for (let i = 0; i < digits.length; i++) {
+      if (i === 2 || i === 5 || i === 8) formatted += '.'
+      else if (i === 9) formatted += '-'
+      else if (i === 12) formatted += '.'
+      formatted += digits[i]
+    }
+    return formatted
+  } else {
+    return digits.slice(0, 16)
+  }
+}
+
+function isValidWebsite(url) {
+  if (!url) return true
+  const pattern = /^(https?:\/\/)?([\da-z.-]+)\.([a-z.]{2,6})([\/\w .-]*)*\/?$/i
+  return pattern.test(url)
+}
+
+function validateProfile() {
+  let isValid = true
+  profileErrors.customer_name = ''
+  profileErrors.tax_id = ''
+  profileErrors.website = ''
+  
+  if (!profileForm.customer_name || !profileForm.customer_name.trim()) {
+    profileErrors.customer_name = __('Customer Name is required')
+    isValid = false
+  }
+  
+  if (profileForm.tax_id) {
+    const digits = profileForm.tax_id.replace(/\D/g, '')
+    if (digits.length !== 15 && digits.length !== 16) {
+      profileErrors.tax_id = __('NPWP must be exactly 15 or 16 digits')
+      isValid = false
+    }
+  }
+  
+  if (profileForm.website) {
+    if (!isValidWebsite(profileForm.website)) {
+      profileErrors.website = __('Please enter a valid website URL')
+      isValid = false
+    }
+  }
+  
+  return isValid
+}
+
+function validateKYC() {
+  let isValid = true
+  // Reset all existing KYC errors
+  for (const fieldname in dynamicFormErrors) {
+    dynamicFormErrors[fieldname] = ''
+  }
+  
+  const doc = dynamicForm.doc
+  
+  if (doc.npwp) {
+    const digits = doc.npwp.replace(/\D/g, '')
+    if (digits.length !== 15 && digits.length !== 16) {
+      dynamicFormErrors.npwp = __('NPWP must be exactly 15 or 16 digits')
+      isValid = false
+    }
+  }
+  
+  if (doc.nik) {
+    const digits = doc.nik.replace(/\D/g, '')
+    if (digits.length !== 16) {
+      dynamicFormErrors.nik = __('NIK / KTP must be exactly 16 digits')
+      isValid = false
+    }
+  }
+  
+  if (doc.employee_count !== undefined && doc.employee_count !== null && doc.employee_count !== '') {
+    const count = Number(doc.employee_count)
+    if (isNaN(count) || count < 0) {
+      dynamicFormErrors.employee_count = __('Employee count cannot be negative')
+      isValid = false
+    }
+  }
+  
+  if (doc.date_of_birth) {
+    const dob = new Date(doc.date_of_birth)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    if (dob > today) {
+      dynamicFormErrors.date_of_birth = __('Date of Birth cannot be in the future')
+      isValid = false
+    }
+  }
+  
+  if (doc.founded_date) {
+    const fd = new Date(doc.founded_date)
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    if (fd > today) {
+      dynamicFormErrors.founded_date = __('Company Founded Date cannot be in the future')
+      isValid = false
+    }
+  }
+  
+  if (!doc.registered_address || !doc.registered_address.trim()) {
+    dynamicFormErrors.registered_address = __('Registered Address is required')
+    isValid = false
+  }
+
+  if (doc.watchlist && (!doc.watchlist_reason || !doc.watchlist_reason.trim())) {
+    dynamicFormErrors.watchlist_reason = __('Watchlist Reason is required when watchlist is enabled')
+    isValid = false
+  }
+  
+  return isValid
+}
+
+const requiredDynamicFields = {
+  relationship: ['related_party', 'relationship_type'],
+  facility: ['facility_type'],
+  bankAccount: ['bank', 'account_number'],
+  collateral: ['asset'],
+  bureau: ['source'],
+  document: ['title'],
+  communication: ['subject'],
+  financial: ['metric', 'year'],
+  siteVisit: ['visit_date'],
+  transaction: ['transaction_date', 'transaction_type'],
+  aiInsight: ['title'],
+  tag: ['tag'],
+  task: ['title'],
+  note: ['title'],
+  event: ['subject'],
+}
+
+function validateDynamicForm() {
+  let isValid = true
+  for (const fieldname in dynamicFormErrors) {
+    dynamicFormErrors[fieldname] = ''
+  }
+  for (const fieldname of requiredDynamicFields[dynamicForm.key] || []) {
+    if (dynamicForm.doc[fieldname] === undefined || dynamicForm.doc[fieldname] === null || String(dynamicForm.doc[fieldname]).trim() === '') {
+      dynamicFormErrors[fieldname] = __('This field is required')
+      isValid = false
+    }
+  }
+  const scoreFields = ['score', 'internal_score']
+  for (const fieldname of scoreFields) {
+    if (dynamicForm.doc[fieldname] !== undefined && dynamicForm.doc[fieldname] !== '') {
+      const value = Number(dynamicForm.doc[fieldname])
+      if (Number.isNaN(value) || value < 0 || value > 1000) {
+        dynamicFormErrors[fieldname] = __('Score must be between 0 and 1000')
+        isValid = false
+      }
+    }
+  }
+  if (dynamicForm.doc.confidence_score !== undefined && dynamicForm.doc.confidence_score !== '') {
+    const value = Number(dynamicForm.doc.confidence_score)
+    if (Number.isNaN(value) || value < 0 || value > 100) {
+      dynamicFormErrors.confidence_score = __('Confidence must be between 0 and 100')
+      isValid = false
+    }
+  }
+  if (dynamicForm.doc.ltv_percent !== undefined && dynamicForm.doc.ltv_percent !== '') {
+    const value = Number(dynamicForm.doc.ltv_percent)
+    if (Number.isNaN(value) || value < 0 || value > 100) {
+      dynamicFormErrors.ltv_percent = __('LTV must be between 0 and 100')
+      isValid = false
+    }
+  }
+  return isValid
+}
+
+// Watchers for Profile Edit validation
+watch(() => profileForm.tax_id, (newVal) => {
+  const formatted = formatNPWP(newVal)
+  if (formatted !== newVal) {
+    profileForm.tax_id = formatted
+  }
+  if (profileErrors.tax_id) validateProfile()
+})
+
+watch(() => profileForm.customer_name, () => {
+  if (profileErrors.customer_name) validateProfile()
+})
+
+watch(() => profileForm.website, () => {
+  if (profileErrors.website) validateProfile()
+})
+
+watch(showProfileEdit, (newVal) => {
+  if (!newVal) {
+    profileErrors.customer_name = ''
+    profileErrors.tax_id = ''
+    profileErrors.website = ''
+  }
+})
+
+// Watchers for dynamic KYC form real-time formatting & validation
+watch(() => dynamicForm.doc.npwp, (newVal) => {
+  if (dynamicForm.key === 'kyc' && newVal) {
+    const formatted = formatNPWP(newVal)
+    if (formatted !== newVal) {
+      dynamicForm.doc.npwp = formatted
+    }
+    if (dynamicFormErrors.npwp) validateKYC()
+  }
+})
+
+watch(() => dynamicForm.doc.nik, (newVal) => {
+  if (dynamicForm.key === 'kyc' && newVal) {
+    const clean = newVal.replace(/\D/g, '').slice(0, 16)
+    if (clean !== newVal) {
+      dynamicForm.doc.nik = clean
+    }
+    if (dynamicFormErrors.nik) validateKYC()
+  }
+})
+
+watch(() => dynamicForm.doc.employee_count, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.employee_count) validateKYC()
+})
+
+watch(() => dynamicForm.doc.date_of_birth, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.date_of_birth) validateKYC()
+})
+
+watch(() => dynamicForm.doc.founded_date, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.founded_date) validateKYC()
+})
+
+watch(() => dynamicForm.doc.registered_address, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.registered_address) validateKYC()
+})
+
+watch(() => dynamicForm.doc.watchlist, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.watchlist_reason) validateKYC()
+})
+
+watch(() => dynamicForm.doc.watchlist_reason, () => {
+  if (dynamicForm.key === 'kyc' && dynamicFormErrors.watchlist_reason) validateKYC()
+})
 
 const tabs = [
   { key: 'overview', label: 'Overview' },
@@ -527,9 +845,10 @@ const tabs = [
   { key: 'ownership', label: 'Ownership' },
   { key: 'financing', label: 'Financing' },
   { key: 'documents', label: 'Documents & Comms' },
-  { key: 'risk', label: 'Risk & Transactions' },
-  { key: 'statements', label: 'Statements & Visits' },
-  { key: 'engagement', label: 'Engagement & Merge' },
+  { key: 'risk', label: 'Risk' },
+  { key: 'statements', label: 'Statements & Visit' },
+  { key: 'engagement', label: 'Engagement' },
+  { key: 'chat', label: 'Chat' },
 ]
 
 const customersResource = createListResource({
@@ -547,6 +866,7 @@ const customer360 = createResource({
   },
   onSuccess(data) {
     summaryText.value = data?.summary?.summary_text || ''
+    summaryStructured.value = data?.summary?.structured_response || (summaryStructuredCustomer.value === selectedCustomerName.value ? summaryStructured.value : null)
     if (data?.customer) {
       selectedCustomer.value = data.customer
       Object.assign(profileForm, {
@@ -587,15 +907,20 @@ const summary = computed(() => data.value.summary || {})
 const kyc = computed(() => data.value.kyc || null)
 const facilities = computed(() => data.value.facilities || [])
 const activeFacilities = computed(() => facilities.value.filter((row) => row.status === 'Active'))
+const productTypeOptions = computed(() => {
+  const types = new Set(facilities.value.map((row) => row.product_type).filter(Boolean))
+  return ['All', ...Array.from(types).sort()]
+})
 const filteredFacilities = computed(() => {
-  const query = productFilter.value.toLowerCase()
-  if (!query) return facilities.value
-  return facilities.value.filter((row) => String(row.product_type || row.facility_type || '').toLowerCase().includes(query))
+  const filter = productFilter.value
+  if (filter === 'All') return facilities.value
+  return facilities.value.filter((row) => row.product_type === filter)
 })
 const collaterals = computed(() => data.value.collaterals || [])
 const bureauReports = computed(() => data.value.bureau_reports || [])
 const latestBureau = computed(() => bureauReports.value[0] || null)
 const relationships = computed(() => data.value.relationships || [])
+const relationshipGraph = computed(() => data.value.relationship_graph || { nodes: [], edges: [], filters: [] })
 const shareholders = computed(() => data.value.shareholders || [])
 const directors = computed(() => data.value.directors || [])
 const relatedEntities = computed(() => data.value.related_entities || [])
@@ -614,9 +939,37 @@ const tasks = computed(() => data.value.tasks || [])
 const notes = computed(() => data.value.notes || [])
 const events = computed(() => data.value.events || [])
 const timeline = computed(() => data.value.timeline || [])
+const dataQuality = computed(() => data.value.data_quality || { score: 0, missing_required_fields: [], warnings: [], stale_records: [], expired_documents: [] })
+const externalAdapters = computed(() => data.value.external_adapters || [])
+const riskControls = computed(() => data.value.risk_controls || {})
+const complianceStatus = computed(() => data.value.compliance_status || {})
+const nextActions = computed(() => data.value.next_actions || [])
+const auditSummary = computed(() => data.value.audit_summary || {})
+const dataQualityStatus = computed(() => {
+  if ((dataQuality.value.score || 0) >= 80) return __('Production-safe')
+  if ((dataQuality.value.score || 0) >= 60) return __('Needs completion')
+  return __('High priority cleanup')
+})
+const summaryMetaText = computed(() => {
+  const confidence = summaryStructured.value?.confidence ?? summary.value?.structured_response?.confidence
+  const sourceCount = summarySources.value.length || summaryStructured.value?.sources?.length || summary.value?.structured_response?.sources?.length || 0
+  if (confidence || sourceCount) return `${__('Structured AI summary')} · ${__('confidence')} ${confidence ?? '-'} · ${sourceCount} ${__('sources')}`
+  return __('Structured AI summary from Customer 360 records; external adapters are explicit when not configured')
+})
 const timelineKinds = computed(() => ['All', ...new Set(timeline.value.map((row) => row.kind).filter(Boolean))])
 const filteredTimeline = computed(() => timelineFilter.value === 'All' ? timeline.value : timeline.value.filter((row) => row.kind === timelineFilter.value))
-const filteredGraphRelationships = computed(() => graphFilter.value === 'All' ? relationships.value : relationships.value.filter((row) => row.relationship_type === graphFilter.value))
+const graphFilterOptions = computed(() => ['All', ...(relationshipGraph.value.filters || []).filter((item) => item !== 'Customer')])
+const filteredRelationshipGraph = computed(() => {
+  const graph = relationshipGraph.value
+  if (graphFilter.value === 'All') return graph
+  const nodes = (graph.nodes || []).filter((node) => node.type === 'Customer' || node.type === graphFilter.value)
+  const nodeIds = new Set(nodes.map((node) => node.id))
+  return {
+    ...graph,
+    nodes,
+    edges: (graph.edges || []).filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target)),
+  }
+})
 const filteredDocuments = computed(() => {
   const query = documentSearch.value.toLowerCase()
   if (!query) return documents.value
@@ -633,8 +986,17 @@ const formConfigs = computed(() => ({
   creditApplication: {
     title: __('New Credit Application'),
     doctype: 'CRM Credit Application',
-    defaults: { borrower: selectedCustomerName.value, borrower_type: 'Individual', status: 'Draft' },
-    fields: [field('facility_type', 'Facility Type'), field('requested_amount', 'Requested Amount', 'number'), field('employer_name', 'Employer / Affiliation'), field('public_company_ticker', 'PT Tbk Ticker'), field('purpose', 'Purpose', 'textarea')],
+    defaults: { borrower: selectedCustomerName.value, borrower_type: selectedCustomer.value?.customer_type || 'Company', status: 'Draft' },
+    fields: [
+      field('borrower', 'Borrower', 'hidden'),
+      field('borrower_type', 'Borrower Type', 'select', ['Individual', 'Company']),
+      field('status', 'Status', 'select', ['Draft', 'Application Received', 'Document Review', 'Credit Analysis', 'Collateral Appraisal', 'Committee Approval', 'Legal Documentation', 'Disbursement', 'Active', 'Rejected', 'Closed']),
+      field('facility_type', 'Facility Type'),
+      field('requested_amount', 'Requested Amount', 'currency'),
+      field('employer_name', 'Employer / Affiliation'),
+      field('public_company_ticker', 'PT Tbk Ticker'),
+      field('purpose', 'Purpose', 'textarea'),
+    ],
   },
   kyc: {
     title: __('KYC Review'),
@@ -663,7 +1025,7 @@ const formConfigs = computed(() => ({
     defaults: { customer: selectedCustomerName.value, aml_pep_status: 'Manual', background_check_status: 'Manual' },
     fields: [
       field('related_party', 'Related Party'),
-      field('related_customer', 'Linked Customer Profile'),
+      field('related_customer', 'Linked Customer Profile', 'link', 'Customer'),
       field('relationship_type', 'Relationship Type', 'select', ['Shareholder', 'UBO', 'Director', 'Commissioner', 'Group Company', 'RM', 'Other']),
       field('ownership_percent', 'Ownership %', 'number'),
       field('position', 'Position / Role'),
@@ -672,7 +1034,7 @@ const formConfigs = computed(() => ({
       field('tenure_start', 'Tenure Start', 'date'),
       field('aml_pep_status', 'AML / PEP Status', 'select', ['Manual', 'Pending Vendor', 'Clear', 'Potential Match', 'Unavailable']),
       field('background_check_status', 'Background Check', 'select', ['Manual', 'Pending Vendor', 'Clear', 'Flagged', 'Unavailable']),
-      field('exposure', 'Exposure', 'number'),
+      field('exposure', 'Exposure', 'currency'),
       field('is_ubo', 'Is UBO', 'checkbox'),
     ],
   },
@@ -685,8 +1047,8 @@ const formConfigs = computed(() => ({
       field('product_type', 'Product Type'),
       field('status', 'Status', 'select', ['Active', 'Closed', 'Restructured', 'Watchlist']),
       field('due_date', 'Due Date', 'date'),
-      field('outstanding', 'Outstanding', 'number'),
-      field('limit_amount', 'Limit Amount', 'number'),
+      field('outstanding', 'Outstanding', 'currency'),
+      field('limit_amount', 'Limit Amount', 'currency'),
       field('health', 'Health / KOL'),
       field('repayment_behavior', 'Repayment Behavior', 'textarea'),
       field('default_flag', 'Default History Flag', 'checkbox'),
@@ -703,13 +1065,13 @@ const formConfigs = computed(() => ({
     title: __('Collateral'),
     doctype: 'CRM Collateral',
     defaults: { customer: selectedCustomerName.value, status: 'Active', reappraisal_status: 'Not Required' },
-    fields: [field('asset', 'Asset'), field('collateral_type', 'Type'), field('collateral_value', 'Value', 'number'), field('linked_facility', 'Linked Facility ID'), field('ltv_percent', 'LTV %', 'number'), field('expiry_date', 'Expiry Date', 'date'), field('insurance_expiry', 'Insurance Expiry', 'date'), field('document_link', 'Document Link'), field('reappraisal_status', 'Re-appraisal', 'select', ['Not Required', 'Due', 'In Progress', 'Completed']), field('status', 'Status', 'select', ['Active', 'Expired', 'Released', 'Under Review'])],
+    fields: [field('asset', 'Asset'), field('collateral_type', 'Type'), field('collateral_value', 'Value', 'currency'), field('linked_facility', 'Linked Facility', 'link', 'CRM Credit Facility', { customer: selectedCustomerName.value }), field('ltv_percent', 'LTV %', 'number'), field('expiry_date', 'Expiry Date', 'date'), field('insurance_expiry', 'Insurance Expiry', 'date'), field('document_link', 'Document Link'), field('reappraisal_status', 'Re-appraisal', 'select', ['Not Required', 'Due', 'In Progress', 'Completed']), field('status', 'Status', 'select', ['Active', 'Expired', 'Released', 'Under Review'])],
   },
   bureau: {
     title: __('Bureau Report'),
     doctype: 'CRM Bureau Report',
     defaults: { customer: selectedCustomerName.value, source: 'SLIK/OJK Manual Upload' },
-    fields: [field('source', 'Source', 'select', ['SLIK/OJK Manual Upload', 'PEFINDO', 'Internal', 'Other']), field('report_date', 'Report Date', 'date'), field('kol_status', 'KOL Status'), field('score', 'Score', 'number'), field('external_exposure', 'External Exposure', 'number'), field('notes', 'Notes', 'textarea')],
+    fields: [field('source', 'Source', 'select', ['SLIK/OJK Manual Upload', 'PEFINDO', 'Internal', 'Other']), field('report_date', 'Report Date', 'date'), field('kol_status', 'KOL Status'), field('score', 'Score', 'number'), field('external_exposure', 'External Exposure', 'currency'), field('notes', 'Notes', 'textarea')],
   },
   document: {
     title: __('Customer Document'),
@@ -727,7 +1089,7 @@ const formConfigs = computed(() => ({
     title: __('Financial Statement'),
     doctype: 'CRM Financial Statement',
     defaults: { customer: selectedCustomerName.value, statement_type: 'P&L', extraction_status: 'Manual' },
-    fields: [field('statement_type', 'Statement Type', 'select', ['P&L', 'Balance Sheet', 'Cash Flow', 'Other']), field('metric', 'Metric'), field('year', 'Year', 'number'), field('amount', 'Amount', 'number'), field('auditor', 'Auditor'), field('audit_year', 'Audit Year', 'number'), field('source', 'Source'), field('extraction_status', 'AI Extraction Status', 'select', ['Manual', 'Pending Vendor', 'Extracted', 'Failed', 'Unavailable']), field('audited', 'Audited', 'checkbox'), field('forecast', 'Forecast', 'checkbox'), field('notes', 'Notes', 'textarea')],
+    fields: [field('statement_type', 'Statement Type', 'select', ['P&L', 'Balance Sheet', 'Cash Flow', 'Other']), field('metric', 'Metric'), field('year', 'Year', 'number'), field('amount', 'Amount', 'currency'), field('auditor', 'Auditor'), field('audit_year', 'Audit Year', 'number'), field('source', 'Source'), field('extraction_status', 'AI Extraction Status', 'select', ['Manual', 'Pending Vendor', 'Extracted', 'Failed', 'Unavailable']), field('audited', 'Audited', 'checkbox'), field('forecast', 'Forecast', 'checkbox'), field('notes', 'Notes', 'textarea')],
   },
   siteVisit: {
     title: __('Site Visit'),
@@ -745,13 +1107,13 @@ const formConfigs = computed(() => ({
     title: __('Transaction'),
     doctype: 'CRM Transaction History',
     defaults: { customer: selectedCustomerName.value, transaction_type: 'Repayment', status: 'Posted' },
-    fields: [field('facility', 'Facility ID'), field('transaction_date', 'Transaction Date', 'date'), field('transaction_type', 'Type', 'select', ['Repayment', 'Missed Payment', 'Disbursement', 'Fee', 'Adjustment']), field('amount', 'Amount', 'number'), field('running_balance', 'Running Balance', 'number'), field('status', 'Status', 'select', ['Posted', 'Pending', 'Failed']), field('notes', 'Notes', 'textarea')],
+    fields: [field('facility', 'Facility', 'link', 'CRM Credit Facility', { customer: selectedCustomerName.value }), field('transaction_date', 'Transaction Date', 'date'), field('transaction_type', 'Type', 'select', ['Repayment', 'Missed Payment', 'Disbursement', 'Fee', 'Adjustment']), field('amount', 'Amount', 'currency'), field('running_balance', 'Running Balance', 'currency'), field('status', 'Status', 'select', ['Posted', 'Pending', 'Failed']), field('notes', 'Notes', 'textarea')],
   },
   task: {
     title: __('Customer Task'),
     doctype: 'CRM Task',
     defaults: { reference_doctype: 'Customer', reference_docname: selectedCustomerName.value, status: 'Todo', priority: 'Medium' },
-    fields: [field('title', 'Title'), field('assigned_to', 'Assigned To'), field('priority', 'Priority', 'select', ['Low', 'Medium', 'High']), field('status', 'Status', 'select', ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled']), field('due_date', 'Due Date', 'datetime-local'), field('recurring', 'Recurring', 'checkbox'), field('recurrence_rule', 'Recurrence Rule'), field('description', 'Description', 'textarea')],
+    fields: [field('title', 'Title'), field('assigned_to', 'Assigned To', 'link', 'User'), field('priority', 'Priority', 'select', ['Low', 'Medium', 'High']), field('status', 'Status', 'select', ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled']), field('due_date', 'Due Date', 'datetime-local'), field('recurring', 'Recurring', 'checkbox'), field('recurrence_rule', 'Recurrence Rule'), field('description', 'Description', 'textarea')],
   },
   note: { title: __('Customer Note'), doctype: 'FCRM Note', defaults: { reference_doctype: 'Customer', reference_docname: selectedCustomerName.value }, fields: [field('title', 'Title'), field('content', 'Content', 'textarea')] },
   event: { title: __('Customer Event'), doctype: 'Event', defaults: { reference_doctype: 'Customer', reference_docname: selectedCustomerName.value, status: 'Open', event_type: 'Private' }, fields: [field('subject', 'Subject'), field('starts_on', 'Starts On', 'datetime-local'), field('ends_on', 'Ends On', 'datetime-local'), field('description', 'Description', 'textarea')] },
@@ -764,8 +1126,8 @@ const formConfigs = computed(() => ({
   tag: { title: __('Customer Tag'), doctype: 'CRM Customer Tag', defaults: { customer: selectedCustomerName.value, color: '#0f766e' }, fields: [field('tag', 'Tag'), field('color', 'Color', 'color'), field('bulk_batch_id', 'Bulk Batch ID'), field('notes', 'Notes', 'textarea')] },
 }))
 
-function field(fieldname, label, type = 'text', options = []) {
-  return { fieldname, label, type, options }
+function field(fieldname, label, type = 'text', options = [], filters = []) {
+  return { fieldname, label, type, options, filters }
 }
 
 function selectCustomer(cust) {
@@ -798,15 +1160,35 @@ function reloadCustomer360() {
 function openForm(key, existing = {}) {
   const config = formConfigs.value[key]
   if (!config) return
+  
+  // Clear any existing errors when opening form
+  for (const k in dynamicFormErrors) {
+    dynamicFormErrors[k] = ''
+  }
+  
   dynamicForm.key = key
   dynamicForm.title = config.title
   dynamicForm.doctype = config.doctype
   dynamicForm.fields = config.fields
   dynamicForm.doc = { ...config.defaults, ...existing }
+  dynamicForm.options = {
+    title: config.title,
+    size: config.fields.length > 5 ? '3xl' : 'md',
+  }
   showDynamicForm.value = true
 }
 
 function submitDynamicForm() {
+  if (dynamicForm.key === 'kyc') {
+    if (!validateKYC()) {
+      toast.error(__('Please correct the errors in the KYC form'))
+      return
+    }
+  }
+  if (!validateDynamicForm()) {
+    toast.error(__('Please complete required fields'))
+    return
+  }
   insertResource.submit({ doctype: dynamicForm.doctype, doc: normalizeDoc(dynamicForm.doc) })
 }
 
@@ -818,6 +1200,10 @@ async function toggleTask(task) {
 }
 
 async function saveProfile() {
+  if (!validateProfile()) {
+    toast.error(__('Please correct the errors in the profile form'))
+    return
+  }
   await call('crm.api.credit.update_customer_profile', {
     customer: selectedCustomerName.value,
     payload: normalizeDoc(profileForm),
@@ -829,9 +1215,64 @@ async function saveProfile() {
 }
 
 async function saveCustomerSummary() {
-  await call('crm.api.credit.save_customer_summary', { customer: selectedCustomerName.value, summary: summaryText.value })
+  await call('crm.api.credit.save_customer_summary', {
+    customer: selectedCustomerName.value,
+    summary: summaryText.value,
+    structured_response: summaryStructured.value || summary.value?.structured_response || null,
+    sources: summarySources.value,
+    confidence: summaryStructured.value?.confidence || null,
+    limitations: summaryStructured.value?.limitations || [],
+  })
+  summaryStructuredCustomer.value = selectedCustomerName.value
   toast.success(__('Summary saved'))
   reloadCustomer360()
+}
+
+async function generateCustomerSummary() {
+  if (!selectedCustomerName.value) return
+  isGeneratingSummary.value = true
+  try {
+    const response = await call('crm.api.ai_agent_center.generate_summary', {
+      scope: 'Customer',
+      docname: selectedCustomerName.value,
+      length: summaryLength.value,
+    })
+    summaryText.value = response.response || ''
+    summaryStructured.value = response.structured_response || null
+    summaryStructuredCustomer.value = selectedCustomerName.value
+    summarySources.value = response.structured_response?.sources || response.sources || []
+    toast.success(__('RAG summary generated'))
+    reloadCustomer360()
+  } catch (error) {
+    toast.error(error?.messages?.[0] || __('Could not generate RAG summary'))
+  } finally {
+    isGeneratingSummary.value = false
+  }
+}
+
+async function checkAdapter(adapterKey) {
+  try {
+    const status = await call('crm.api.credit.check_customer360_adapter', { customer: selectedCustomerName.value, adapter_key: adapterKey })
+    toast.success(`${status.label}: ${status.status}`)
+  } catch (error) {
+    toast.error(error?.messages?.[0] || __('Could not check adapter status'))
+  }
+}
+
+function runNextAction(action) {
+  const map = {
+    open_profile: 'profile',
+    open_kyc: 'profile',
+    open_documents: 'documents',
+    open_transactions: 'risk',
+    open_ownership: 'ownership',
+    open_ai_insight: 'engagement',
+    check_adapter: 'overview',
+  }
+  activeTab.value = map[action.action_key] || 'overview'
+  if (action.action_key === 'check_adapter' && action.payload?.adapter_key) {
+    checkAdapter(action.payload.adapter_key)
+  }
 }
 
 async function addCustomer() {
@@ -851,9 +1292,7 @@ async function addCustomer() {
 }
 
 async function runAmlCheck(row) {
-  await call('frappe.client.set_value', { doctype: 'CRM Relationship', name: row.name, fieldname: 'aml_pep_status', value: 'Pending Vendor' })
-  toast.success(__('AML/PEP check marked as pending vendor'))
-  reloadCustomer360()
+  await checkAdapter('aml_pep')
 }
 
 async function requestRestructure(row) {
@@ -868,9 +1307,635 @@ async function acceptInsight(row) {
   reloadCustomer360()
 }
 
+function buildProfileHTML(cust, scope, watermark) {
+  const fmt = (v) => formatCurrency(v)
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' }) : '-'
+  
+  const incAll = scope === 'Full Profile'
+  const incKYC = incAll || scope === 'Profile & KYC'
+  const incFinancing = incAll || scope === 'Financing'
+  const incRisk = incAll || scope === 'Risk'
+  const incDocs = incAll || scope === 'Documents'
+  const incCurrent = scope === 'Current Tab'
+  
+  let html = `
+    <div style="font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.5; padding: 20px; max-width: 800px; margin: 0 auto; background: #fff; position: relative;">
+  `
+  
+  html += `
+    <!-- COVER PAGE -->
+    <div class="page-section" style="page-break-after: always; height: 950px; display: flex; flex-direction: column; justify-content: space-between; border: 2px solid #e2e8f0; border-radius: 12px; padding: 40px; box-sizing: border-box; position: relative; background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);">
+      ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.25); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+      
+      <div style="z-index: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #005e6a; padding-bottom: 15px;">
+          <div>
+            <span style="font-size: 24px; font-weight: 900; color: #005e6a;">BNI</span>
+            <span style="font-size: 14px; font-weight: 600; color: #f79009; margin-left: 5px;">CRM PORTAL</span>
+          </div>
+          <span style="font-size: 10px; font-weight: 700; color: #64748b; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 1px;">CONFIDENTIAL</span>
+        </div>
+        
+        <div style="margin-top: 180px;">
+          <h1 style="font-size: 38px; font-weight: 800; color: #0f172a; line-height: 1.2; margin: 0 0 10px 0;">CUSTOMER 360 PROFILE REPORT</h1>
+          <p style="font-size: 18px; font-weight: 500; color: #005e6a; margin: 0 0 40px 0; letter-spacing: 0.5px;">Comprehensive Portfolio & Risk Exposure Review</p>
+          
+          <div style="width: 80px; height: 6px; background-color: #f79009; border-radius: 3px; margin-bottom: 50px;"></div>
+          
+          <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <tr>
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600; width: 160px;">Customer Name</td>
+              <td style="padding: 10px 0; color: #0f172a; font-weight: 700; font-size: 16px;">${cust.customer_name || cust.name}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Customer Type</td>
+              <td style="padding: 10px 0; color: #0f172a; font-weight: 600;">${cust.customer_type || 'Company'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Tax ID / NPWP</td>
+              <td style="padding: 10px 0; color: #0f172a; font-family: monospace; font-weight: 600;">${cust.tax_id || kyc.value?.npwp || '-'}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; color: #64748b; font-weight: 600;">Risk Grade / Score</td>
+              <td style="padding: 10px 0; color: #0f172a; font-weight: 600;">
+                <span style="background: #fff8e6; color: #b78103; padding: 3px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #ffe8cc;">
+                  ${summary.value?.risk_grade || 'Unrated'} (${summary.value?.score || 0} pts)
+                </span>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      
+      <div style="z-index: 1; border-top: 1px solid #e2e8f0; padding-top: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+          <p style="font-size: 11px; color: #94a3b8; margin: 0 0 4px 0;">REPORT GENERATED BY</p>
+          <p style="font-size: 13px; font-weight: 700; color: #334155; margin: 0;">BNI RM Workspace</p>
+        </div>
+        <div>
+          <p style="font-size: 11px; color: #94a3b8; margin: 0 0 4px 0; text-align: right;">DATE OF GENERATION</p>
+          <p style="font-size: 13px; font-weight: 700; color: #334155; margin: 0; text-align: right;">${fmtDate(new Date())}</p>
+        </div>
+      </div>
+    </div>
+  `
+  
+  if (incKYC || (incCurrent && activeTab.value === 'overview') || (incCurrent && activeTab.value === 'profile')) {
+    html += `
+      <div class="page-section" style="page-break-after: always; padding-top: 20px; position: relative; min-height: 900px;">
+        ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.2); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 25px;">
+          <span style="font-size: 12px; font-weight: 700; color: #005e6a; letter-spacing: 0.5px;">SECTION 1: PROFILE & KYC REVIEW</span>
+          <span style="font-size: 11px; color: #94a3b8;">${cust.customer_name || cust.name}</span>
+        </div>
+        
+        <div style="background: #f0fdfa; border-left: 4px solid #0d9488; border-radius: 8px; padding: 20px; margin-bottom: 30px; box-shadow: inset 0 0 8px rgba(13,148,136,0.02);">
+          <h3 style="font-size: 14px; font-weight: 800; color: #0f766e; margin: 0 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase;">AI Customer Executive Summary</h3>
+          <div style="font-size: 13px; color: #334155; line-height: 1.6; font-style: italic;">
+            ${summaryText.value ? summaryText.value.replace(/\n/g, '<br>') : 'No executive summary generated.'}
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 30px;">
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; background: #f8fafc;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">Data Quality</div>
+            <div style="font-size: 28px; font-weight: 900; color: #005e6a; margin-top: 4px;">${dataQuality.value?.score || 0}</div>
+            <div style="font-size: 12px; color: #475569;">${(dataQuality.value?.missing_required_fields || []).length} missing fields · ${(dataQuality.value?.warnings || []).length} warnings</div>
+          </div>
+          <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; background: #f8fafc;">
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase;">External Adapters</div>
+            <div style="font-size: 13px; color: #475569; margin-top: 8px; line-height: 1.5;">
+              ${(externalAdapters.value || []).slice(0, 4).map(adapter => `${adapter.label}: ${adapter.status}`).join('<br>') || 'No adapter status available.'}
+            </div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Know Your Customer (KYC) Registry</h3>
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 40px;">
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 12px;">
+            <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">KYC Status</div>
+            <div style="font-size: 14px; font-weight: 700; color: ${kyc.value?.status === 'Verified' ? '#16a34a' : '#ea580c'}">${kyc.value?.status || 'Pending'}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 12px;">
+            <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">e-KYC Result</div>
+            <div style="font-size: 14px; font-weight: 700; color: #005e6a;">${kyc.value?.ekyc_result || 'Manual'}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 12px;">
+            <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Last Review Date</div>
+            <div style="font-size: 13px; font-weight: 600; color: #334155;">${fmtDate(kyc.value?.review_date)}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 12px;">
+            <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Next Scheduled Review</div>
+            <div style="font-size: 13px; font-weight: 600; color: #334155;">${fmtDate(kyc.value?.next_review_date)}</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 12px; grid-column: span 2;">
+            <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; margin-bottom: 4px;">Registered Address</div>
+            <div style="font-size: 13px; font-weight: 500; color: #334155; line-height: 1.4;">${kyc.value?.registered_address || '-'}</div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Corporate Demographics</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px;">
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px; color: #64748b; font-weight: 600;">Customer Group</td>
+            <td style="padding: 10px; color: #1e293b; font-weight: 600; text-align: right;">${cust.customer_group || '-'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px; color: #64748b; font-weight: 600;">Territory / Region</td>
+            <td style="padding: 10px; color: #1e293b; font-weight: 600; text-align: right;">${cust.territory || '-'}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 10px; color: #64748b; font-weight: 600;">Corporate Website</td>
+            <td style="padding: 10px; color: #1e293b; font-weight: 600; text-align: right;">${cust.website || '-'}</td>
+          </tr>
+        </table>
+      </div>
+    `
+  }
+  
+  if (incAll || (incCurrent && activeTab.value === 'ownership')) {
+    html += `
+      <div class="page-section" style="page-break-after: always; padding-top: 20px; position: relative; min-height: 900px;">
+        ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.2); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 25px;">
+          <span style="font-size: 12px; font-weight: 700; color: #005e6a; letter-spacing: 0.5px;">SECTION 2: CORPORATE STRUCTURE & OWNERSHIP</span>
+          <span style="font-size: 11px; color: #94a3b8;">${cust.customer_name || cust.name}</span>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Corporate Shareholders (Cap Table)</h3>
+        <div style="margin-bottom: 10px; font-size: 12px; font-weight: 700; color: #005e6a;">
+          Ownership Captured: ${summary.value?.shareholder_total || 0}%
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 40px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Shareholder Name</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Ownership %</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">Is UBO</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Linked Customer Profile</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${shareholders.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.related_party || '-'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 700; text-align: right;">${row.ownership_percent || 0}%</td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="background: ${row.is_ubo ? '#f0fdf4' : '#f1f5f9'}; color: ${row.is_ubo ? '#16a34a' : '#64748b'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; border: 1px solid ${row.is_ubo ? '#bbf7d0' : '#e2e8f0'}">
+                    ${row.is_ubo ? 'YES' : 'NO'}
+                  </span>
+                </td>
+                <td style="padding: 10px 12px; color: #64748b;">${row.related_customer || '-'}</td>
+              </tr>
+            `).join('')}
+            ${!shareholders.value.length ? `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #94a3b8;">No shareholder records found</td></tr>` : ''}
+          </tbody>
+        </table>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Board of Directors & Commissioners</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 40px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Name</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Role / Position</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">ID Card / NIK</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">AML/PEP Check</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Background Check</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${directors.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.related_party || '-'}</td>
+                <td style="padding: 10px 12px; color: #334155;">${row.position || '-'}</td>
+                <td style="padding: 10px 12px; color: #64748b; font-family: monospace;">${row.director_id || '-'}</td>
+                <td style="padding: 10px 12px;">
+                  <span style="background: ${row.aml_pep_status === 'Clear' ? '#f0fdf4' : row.aml_pep_status === 'Pending Vendor' ? '#fffbeb' : '#fef2f2'}; color: ${row.aml_pep_status === 'Clear' ? '#16a34a' : row.aml_pep_status === 'Pending Vendor' ? '#b45309' : '#dc2626'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.aml_pep_status || 'Manual'}
+                  </span>
+                </td>
+                <td style="padding: 10px 12px;">
+                  <span style="background: ${row.background_check_status === 'Clear' ? '#f0fdf4' : '#f1f5f9'}; color: ${row.background_check_status === 'Clear' ? '#16a34a' : '#64748b'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.background_check_status || 'Manual'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!directors.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No director records found</td></tr>` : ''}
+          </tbody>
+        </table>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Affiliated & Group Companies</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Entity Name</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Relationship Type</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Group Exposure</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Linked Customer</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${relatedEntities.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.related_party || '-'}</td>
+                <td style="padding: 10px 12px; color: #334155;">${row.relationship_type || '-'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 700; text-align: right;">${fmt(row.exposure)}</td>
+                <td style="padding: 10px 12px; color: #64748b;">${row.related_customer || '-'}</td>
+              </tr>
+            `).join('')}
+            ${!relatedEntities.value.length ? `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #94a3b8;">No affiliated entities found</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+  
+  if (incFinancing || (incCurrent && activeTab.value === 'financing')) {
+    const totalLimit = facilities.value.reduce((s, row) => s + flt(row.limit_amount), 0)
+    const totalOS = facilities.value.reduce((s, row) => s + flt(row.outstanding), 0)
+    html += `
+      <div class="page-section" style="page-break-after: always; padding-top: 20px; position: relative; min-height: 900px;">
+        ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.2); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 25px;">
+          <span style="font-size: 12px; font-weight: 700; color: #005e6a; letter-spacing: 0.5px;">SECTION 3: CREDIT FACILITIES & EXPOSURE</span>
+          <span style="font-size: 11px; color: #94a3b8;">${cust.customer_name || cust.name}</span>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px;">
+          <div style="background: linear-gradient(135deg, #005e6a 0%, #008c95 100%); border-radius: 8px; padding: 15px; color: #fff; box-shadow: 0 4px 6px rgba(0,94,106,0.15);">
+            <div style="font-size: 9px; font-weight: 800; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Total Approved Limit</div>
+            <div style="font-size: 16px; font-weight: 800; white-space: nowrap;">${fmt(totalLimit)}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; color: #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.01);">
+            <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Total Outstanding Exposure</div>
+            <div style="font-size: 16px; font-weight: 800; color: #005e6a; white-space: nowrap;">${fmt(totalOS)}</div>
+          </div>
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; color: #1e293b; box-shadow: 0 4px 6px rgba(0,0,0,0.01);">
+            <div style="font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Active Facilities</div>
+            <div style="font-size: 16px; font-weight: 800; color: #f79009;">${facilities.value.filter(r=>r.status==='Active').length} Facility(s)</div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Active Credit Facilities</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 40px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Facility Type</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Outstanding</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Limit Amount</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Due Date</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">KOL Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${facilities.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.facility_type || row.product_type || '-'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 700; text-align: right;">${fmt(row.outstanding)}</td>
+                <td style="padding: 10px 12px; color: #475569; text-align: right;">${fmt(row.limit_amount)}</td>
+                <td style="padding: 10px 12px; color: #64748b;">${fmtDate(row.due_date)}</td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="background: ${row.health === 'KOL-1' || row.health === 'KOL 1' ? '#f0fdf4' : '#fff1f2'}; color: ${row.health === 'KOL-1' || row.health === 'KOL 1' ? '#16a34a' : '#e11d48'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.health || 'KOL-1'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!facilities.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No facilities records found</td></tr>` : ''}
+          </tbody>
+        </table>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Pledged Collateral Assets</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 40px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Collateral Asset / Details</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Asset Type</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Appraised Value</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">LTV %</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${collaterals.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.asset || '-'}</td>
+                <td style="padding: 10px 12px; color: #475569;">${row.collateral_type || '-'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 700; text-align: right;">${fmt(row.collateral_value)}</td>
+                <td style="padding: 10px 12px; color: #475569; text-align: right;">${row.ltv_percent || 0}%</td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="background: #f0fdf4; color: #16a34a; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.status || 'Active'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!collaterals.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No collateral records found</td></tr>` : ''}
+          </tbody>
+        </table>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Registered Settlement Accounts</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Bank</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Account Number</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Account Name</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">Primary</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">Verification</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bankAccounts.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.bank || '-'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-family: monospace;">${row.account_number || '-'}</td>
+                <td style="padding: 10px 12px; color: #475569;">${row.account_name || '-'}</td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="font-size: 10px; font-weight: 800; color: ${row.is_primary ? '#005e6a' : '#94a3b8'};">
+                    ${row.is_primary ? 'YES' : 'NO'}
+                  </span>
+                </td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="background: ${row.verification_status === 'Verified' ? '#f0fdf4' : '#fff1f2'}; color: ${row.verification_status === 'Verified' ? '#16a34a' : '#e11d48'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.verification_status || 'Pending'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!bankAccounts.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No bank accounts found</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+  
+  if (incRisk || (incCurrent && activeTab.value === 'risk')) {
+    html += `
+      <div class="page-section" style="page-break-after: always; padding-top: 20px; position: relative; min-height: 900px;">
+        ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.2); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 25px;">
+          <span style="font-size: 12px; font-weight: 700; color: #005e6a; letter-spacing: 0.5px;">SECTION 4: RISK EVALUATION & METRICS</span>
+          <span style="font-size: 11px; color: #94a3b8;">${cust.customer_name || cust.name}</span>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-bottom: 40px;">
+          <div style="background: #fff8e6; border: 1px solid #ffe8cc; border-radius: 8px; padding: 20px; text-align: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #b78103; text-transform: uppercase; margin-bottom: 6px;">Internal Risk Rating</div>
+            <div style="font-size: 42px; font-weight: 900; color: #b78103; margin-bottom: 5px;">${latestRisk.value?.risk_grade || 'B'}</div>
+            <div style="font-size: 12px; font-weight: 700; color: #667085;">Internal Score: ${latestRisk.value?.internal_score || 720} / 1000</div>
+          </div>
+          <div style="background: #f8fafc; border: 1px solid #edf2f7; border-radius: 8px; padding: 20px;">
+            <h4 style="font-size: 12px; font-weight: 800; color: #334155; margin: 0 0 8px 0; text-transform: uppercase;">Adverse Risk Factors & Triggers</h4>
+            <p style="font-size: 12px; color: #475569; margin: 0 0 10px 0; line-height: 1.5;">
+              <strong>Factors:</strong> ${latestRisk.value?.risk_factors || 'No severe qualitative adverse risks reported from Customer 360 records.'}
+            </p>
+            <p style="font-size: 12px; color: #475569; margin: 0; line-height: 1.5;">
+              <strong>Early Warning triggers:</strong> ${latestRisk.value?.early_warning_triggers || 'No triggers tripped.'}
+            </p>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Recent Financial Transactions</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Date</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Transaction Type</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Amount</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Running Balance</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transactions.value.slice(0, 10).map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #64748b;">${fmtDate(row.transaction_date)}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.transaction_type || '-'}</td>
+                <td style="padding: 10px 12px; color: ${row.transaction_type === 'Missed Payment' ? '#dc2626' : '#1e293b'}; font-weight: 700; text-align: right;">${fmt(row.amount)}</td>
+                <td style="padding: 10px 12px; color: #475569; text-align: right;">${fmt(row.running_balance)}</td>
+                <td style="padding: 10px 12px; text-align: center;">
+                  <span style="background: ${row.status === 'Posted' ? '#f0fdf4' : '#fffbeb'}; color: ${row.status === 'Posted' ? '#16a34a' : '#b45309'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.status || 'Posted'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!transactions.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No transactions records found</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+  
+  if (incAll || (incCurrent && activeTab.value === 'statements')) {
+    html += `
+      <div class="page-section" style="padding-top: 20px; position: relative; min-height: 900px;">
+        ${watermark ? `<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 5rem; color: rgba(226, 232, 240, 0.2); font-weight: 800; pointer-events: none; z-index: 0; white-space: nowrap; text-transform: uppercase;">${watermark}</div>` : ''}
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 25px;">
+          <span style="font-size: 12px; font-weight: 700; color: #005e6a; letter-spacing: 0.5px;">SECTION 5: FINANCIAL STATEMENT SPREADING</span>
+          <span style="font-size: 11px; color: #94a3b8;">${cust.customer_name || cust.name}</span>
+        </div>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Financial Statement Spreading</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden; margin-bottom: 40px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Statement Type</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Metric Key / Description</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: center;">FY Year</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569; text-align: right;">Amount</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Audited / Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${financials.value.slice(0, 20).map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #475569;">${row.statement_type || 'P&L'}</td>
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${row.metric || '-'}</td>
+                <td style="padding: 10px 12px; text-align: center; color: #0f172a; font-weight: 600;">${row.year || '-'}</td>
+                <td style="padding: 10px 12px; color: #005e6a; font-weight: 700; text-align: right;">${fmt(row.amount)}</td>
+                <td style="padding: 10px 12px;">
+                  <span style="background: ${row.audited ? '#f0fdf4' : '#f1f5f9'}; color: ${row.audited ? '#16a34a' : '#64748b'}; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">
+                    ${row.audited ? 'AUDITED' : 'UNAUDITED'}
+                  </span>
+                </td>
+              </tr>
+            `).join('')}
+            ${!financials.value.length ? `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #94a3b8;">No financial records found</td></tr>` : ''}
+          </tbody>
+        </table>
+        
+        <h3 style="font-size: 13px; font-weight: 800; color: #334155; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 0.5px;">Relationship Manager Site Visit History</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #edf2f7; border-radius: 6px; overflow: hidden;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Visit Date</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">RM Auditor</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">GPS Coordinates</th>
+              <th style="padding: 10px 12px; font-weight: 700; color: #475569;">Next Reminder</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${siteVisits.value.map(row => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 10px 12px; color: #1e293b; font-weight: 600;">${fmtDate(row.visit_date)}</td>
+                <td style="padding: 10px 12px; color: #334155;">${row.rm || 'RM'}</td>
+                <td style="padding: 10px 12px; color: #64748b; font-family: monospace;">${row.gps_coordinates || '-'}</td>
+                <td style="padding: 10px 12px; color: #64748b;">${fmtDate(row.next_visit_date)}</td>
+              </tr>
+            `).join('')}
+            ${!siteVisits.value.length ? `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #94a3b8;">No site visit logs found</td></tr>` : ''}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+  
+  html += `</div>`
+  return html
+}
+
+function buildProfileCSV(cust, scope) {
+  let csv = ''
+  
+  const addHeader = (title) => {
+    csv += `\n=========================================\n`
+    csv += `${title.toUpperCase()}\n`
+    csv += `=========================================\n`
+  }
+  const addSubHeader = (title) => {
+    csv += `\n-----------------------------------------\n`
+    csv += `${title.toUpperCase()}\n`
+    csv += `-----------------------------------------\n`
+  }
+  const addRow = (arr) => {
+    csv += arr.map(val => {
+      const s = val == null ? '' : String(val)
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+    }).join(',') + '\n'
+  }
+  
+  addHeader('bni crm - customer portfolio report')
+  addRow(['Customer Name', cust.customer_name || cust.name])
+  addRow(['Customer Type', cust.customer_type || 'Company'])
+  addRow(['Tax ID / NPWP', cust.tax_id || kyc.value?.npwp || '-'])
+  addRow(['Risk Rating', summary.value?.risk_grade || 'Unrated'])
+  addRow(['Risk Score', `${summary.value?.score || 0} pts`])
+  addRow(['Export Date', new Date().toISOString().slice(0, 19).replace('T', ' ')])
+  
+  addSubHeader('executive ai summary')
+  csv += `${summaryText.value || 'No summary text available.'}\n`
+  addSubHeader('production readiness controls')
+  addRow(['Data Quality Score', dataQuality.value?.score || 0])
+  addRow(['Missing Required Fields', (dataQuality.value?.missing_required_fields || []).map(row => row.label).join('; ') || '-'])
+  addRow(['Warnings', (dataQuality.value?.warnings || []).join('; ') || '-'])
+  addRow(['External Adapters', (externalAdapters.value || []).map(row => `${row.label}: ${row.status}`).join('; ') || '-'])
+  addRow(['Last Profile Update', auditSummary.value?.last_profile_update || '-'])
+  
+  if (scope === 'Full Profile' || scope === 'Profile & KYC') {
+    addSubHeader('kyc review registry')
+    addRow(['KYC Status', kyc.value?.status || 'Pending'])
+    addRow(['e-KYC Result', kyc.value?.ekyc_result || 'Manual'])
+    addRow(['Last Review Date', kyc.value?.review_date || '-'])
+    addRow(['Next Review Date', kyc.value?.next_review_date || '-'])
+    addRow(['Registered Address', kyc.value?.registered_address || '-'])
+  }
+  
+  if (scope === 'Full Profile' || scope === 'Profile & KYC') {
+    addSubHeader('corporate cap table (shareholders)')
+    addRow(['Shareholder Name', 'Ownership %', 'Is UBO', 'Linked Customer'])
+    shareholders.value.forEach(row => {
+      addRow([row.related_party, `${row.ownership_percent || 0}%`, row.is_ubo ? 'Yes' : 'No', row.related_customer])
+    })
+    
+    addSubHeader('board of directors & commissioners')
+    addRow(['Name', 'Position', 'ID / NIK', 'AML/PEP Check', 'Background Check'])
+    directors.value.forEach(row => {
+      addRow([row.related_party, row.position, row.director_id, row.aml_pep_status, row.background_check_status])
+    })
+  }
+  
+  if (scope === 'Full Profile' || scope === 'Financing') {
+    addSubHeader('credit facilities & outstanding exposure')
+    addRow(['Facility Type', 'Outstanding Balance', 'Limit Approved Amount', 'Due Date', 'KOL Rating'])
+    facilities.value.forEach(row => {
+      addRow([row.facility_type || row.product_type, row.outstanding, row.limit_amount, row.due_date, row.health])
+    })
+    
+    addSubHeader('pledged collateral portfolio')
+    addRow(['Asset Details', 'Collateral Type', 'Appraised Value', 'LTV %', 'Status'])
+    collaterals.value.forEach(row => {
+      addRow([row.asset, row.collateral_type, row.collateral_value, `${row.ltv_percent || 0}%`, row.status])
+    })
+  }
+  
+  if (scope === 'Full Profile' || scope === 'Risk') {
+    addSubHeader('recent financial transaction log')
+    addRow(['Transaction Date', 'Type', 'Amount', 'Running Balance', 'Status', 'Notes'])
+    transactions.value.forEach(row => {
+      addRow([row.transaction_date, row.transaction_type, row.amount, row.running_balance, row.status, row.notes])
+    })
+  }
+  
+  if (scope === 'Full Profile') {
+    addSubHeader('financial statements spreading')
+    addRow(['Statement Type', 'Metric Description', 'Fiscal Year', 'Amount', 'Audited Status'])
+    financials.value.forEach(row => {
+      addRow([row.statement_type || 'P&L', row.metric, row.year, row.amount, row.audited ? 'Audited' : 'Unaudited'])
+    })
+  }
+  
+  return csv
+}
+
 async function exportProfile() {
-  await call('crm.api.credit.export_customer_profile', { customer: selectedCustomerName.value, ...exportForm })
-  toast.success(__('Export request created'))
+  try {
+    await call('crm.api.credit.export_customer_profile', { customer: selectedCustomerName.value, ...exportForm })
+  } catch (err) {
+    console.error("Backend request fail (non-blocking):", err)
+  }
+
+  if (exportForm.format === 'PDF Report') {
+    const htmlContent = buildProfileHTML(selectedCustomer.value || { name: selectedCustomerName.value }, exportForm.scope, exportForm.watermark)
+    const printEl = document.createElement('div')
+    printEl.innerHTML = htmlContent
+    document.body.appendChild(printEl)
+    
+    try {
+      await html2pdf().set({
+        margin: [10, 10, 10, 10],
+        filename: `${selectedCustomerName.value}-profile-${exportForm.scope.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}-${new Date().toISOString().slice(0, 10)}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).from(printEl).save()
+      
+      toast.success(__('PDF report downloaded successfully'))
+    } catch (e) {
+      toast.error(__('PDF export failed'))
+      console.error(e)
+    } finally {
+      document.body.removeChild(printEl)
+    }
+  } else {
+    const csvContent = buildProfileCSV(selectedCustomer.value || { name: selectedCustomerName.value }, exportForm.scope)
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `${selectedCustomerName.value}-profile-${exportForm.scope.toLowerCase().replace(/ & /g, '_').replace(/ /g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+    toast.success(__('Excel spreadsheet downloaded successfully'))
+  }
+  
   showExportDialog.value = false
   reloadCustomer360()
 }
@@ -901,7 +1966,7 @@ function openConversation(row) {
 }
 
 function openRelatedCustomer(row) {
-  const target = row?.related_customer || row?.name
+  const target = row?.related_customer || row?.customer || (String(row?.id || '').startsWith('customer:') ? String(row.id).slice(9) : '')
   if (!target) return
   if (routeCustomer.value) {
     router.push({ name: 'Customer 360 Detail', params: { customer: target } })
@@ -956,7 +2021,7 @@ function formatCurrency(value) {
 }
 
 function normalizeDoc(doc) {
-  return Object.fromEntries(Object.entries(doc).map(([key, value]) => [key, typeof value === 'string' && value.includes('T') ? value.replace('T', ' ') : value]))
+  return Object.fromEntries(Object.entries(doc).map(([key, value]) => [key, typeof value === 'string' ? value.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/, '$1 $2') : value]))
 }
 
 watch(searchQuery, () => {
@@ -977,9 +2042,15 @@ watch(routeCustomer, () => {
 })
 
 onMounted(async () => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
   await customersResource.promise
   if (routeCustomer.value) loadRouteCustomer()
   else if (directoryCustomers.value.length > 0) selectCustomer(directoryCustomers.value[0])
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 
 usePageMeta(() => ({ title: 'Customer 360' }))
@@ -1065,18 +2136,31 @@ function formatCell(value, isCurrency) {
 }
 
 const ActivityList = {
-  props: ['tasks', 'notes', 'events'],
+  props: ['tasks', 'notes', 'events', 'filter'],
   emits: ['toggleTask'],
   setup(props, { emit }) {
-    return () => h('div', { class: 'space-y-3' }, [
-      ...props.tasks.slice(0, 4).map((task) => h('div', { class: 'flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3' }, [
-        h('input', { type: 'checkbox', checked: task.status === 'Done', class: 'mt-1 accent-teal-600', onChange: () => emit('toggleTask', task) }),
-        h('div', { class: 'min-w-0' }, [h('div', { class: 'text-sm font-semibold text-slate-800 truncate' }, task.title), h('div', { class: 'text-xs text-slate-500' }, `${task.priority || 'Medium'} - ${task.due_date || 'No due date'}`)]),
-      ])),
-      ...props.notes.slice(0, 2).map((note) => h('div', { class: 'rounded-lg border border-slate-100 p-3' }, [h('div', { class: 'text-sm font-semibold text-slate-800' }, note.title), h('div', { class: 'text-xs text-slate-500 truncate' }, note.content || '')])),
-      ...props.events.slice(0, 2).map((event) => h('div', { class: 'rounded-lg border border-slate-100 p-3' }, [h('div', { class: 'text-sm font-semibold text-slate-800' }, event.subject), h('div', { class: 'text-xs text-slate-500' }, event.starts_on || '')])),
-      !props.tasks.length && !props.notes.length && !props.events.length ? h('div', { class: 'text-sm text-slate-400' }, __('No activities yet')) : null,
-    ])
+    return () => {
+      const showTasks = props.filter === 'all' || props.filter === 'task'
+      const showNotes = props.filter === 'all' || props.filter === 'note'
+      const showEvents = props.filter === 'all' || props.filter === 'event'
+      const children = []
+      if (showTasks) {
+        children.push(...props.tasks.slice(0, 4).map((task) => h('div', { class: 'flex items-start gap-2 rounded-lg border border-slate-100 bg-slate-50 p-3' }, [
+          h('input', { type: 'checkbox', checked: task.status === 'Done', class: 'mt-1 accent-teal-600', onChange: () => emit('toggleTask', task) }),
+          h('div', { class: 'min-w-0' }, [h('div', { class: 'text-sm font-semibold text-slate-800 truncate' }, task.title), h('div', { class: 'text-xs text-slate-500' }, `${task.priority || 'Medium'} - ${task.due_date || 'No due date'}`)]),
+        ])))
+      }
+      if (showNotes) {
+        children.push(...props.notes.slice(0, 2).map((note) => h('div', { class: 'rounded-lg border border-slate-100 p-3' }, [h('div', { class: 'text-sm font-semibold text-slate-800' }, note.title), h('div', { class: 'text-xs text-slate-500 truncate' }, note.content || '')])))
+      }
+      if (showEvents) {
+        children.push(...props.events.slice(0, 2).map((event) => h('div', { class: 'rounded-lg border border-slate-100 p-3' }, [h('div', { class: 'text-sm font-semibold text-slate-800' }, event.subject), h('div', { class: 'text-xs text-slate-500' }, event.starts_on || '')])))
+      }
+      if (!children.length) {
+        children.push(h('div', { class: 'text-sm text-slate-400' }, __('No activities yet')))
+      }
+      return h('div', { class: 'space-y-3' }, children)
+    }
   },
 }
 
@@ -1095,19 +2179,34 @@ const TimelineList = {
 }
 
 const RelationshipGraph = {
-  props: ['customer', 'relationships', 'zoom'],
+  props: ['customer', 'graph', 'zoom'],
   emits: ['openNode'],
   setup(props, { emit }) {
+    const positionedNodes = computed(() => {
+      const nodes = (props.graph?.nodes || []).filter((node) => node.type !== 'Customer').slice(0, 12)
+      return nodes.map((node, index) => {
+        const angle = (index / Math.max(nodes.length, 1)) * Math.PI * 2
+        return {
+          ...node,
+          left: 112 + Math.cos(angle) * 100,
+          top: 112 + Math.sin(angle) * 100,
+        }
+      })
+    })
     return () => h('div', { class: 'relative h-72 rounded-lg border border-slate-100 bg-slate-50 overflow-hidden' }, [
       h('div', { class: 'absolute inset-0 flex items-center justify-center', style: { transform: `scale(${props.zoom || 1})` } }, [
         h('div', { class: 'relative w-64 h-64' }, [
           h('div', { class: 'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-black text-center p-2 shadow-lg' }, props.customer?.customer_name || props.customer?.name || 'Customer'),
-          ...props.relationships.slice(0, 8).map((rel, index) => {
-            const angle = (index / Math.max(props.relationships.length, 1)) * Math.PI * 2
-            const x = 112 + Math.cos(angle) * 100
-            const y = 112 + Math.sin(angle) * 100
-            return h('button', { class: 'absolute w-16 h-16 rounded-full bg-white border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm p-1 hover:border-teal-400', style: { left: `${x}px`, top: `${y}px` }, onClick: () => emit('openNode', rel) }, [h('span', { class: 'line-clamp-2' }, rel.related_party || rel.relationship_type)])
-          }),
+          ...positionedNodes.value.map((node) => h('button', {
+            class: 'absolute w-16 h-16 rounded-full bg-white border border-slate-200 text-[10px] font-bold text-slate-600 shadow-sm p-1 hover:border-teal-400',
+            style: { left: `${node.left}px`, top: `${node.top}px` },
+            title: `${node.type}${node.exposure ? ` · ${formatCurrency(node.exposure)}` : ''}`,
+            onClick: () => emit('openNode', node),
+          }, [
+            h('span', { class: 'line-clamp-2' }, node.label || node.type),
+            h('span', { class: 'block text-[8px] font-semibold text-teal-600' }, node.type),
+          ])),
+          !positionedNodes.value.length ? h('div', { class: 'absolute bottom-4 left-0 right-0 text-center text-xs text-slate-400' }, __('No relationship graph nodes yet')) : null,
         ]),
       ]),
     ])
@@ -1138,34 +2237,69 @@ const ScoreTrend = {
 }
 
 const FormInput = {
-  props: ['label', 'type', 'modelValue'],
+  props: ['label', 'type', 'modelValue', 'error'],
   emits: ['update:modelValue'],
   setup(props, { attrs, emit }) {
     return () => h('label', { class: 'block' }, [
-      h('span', { class: 'block text-xs font-bold text-slate-500 uppercase mb-1' }, props.label),
-      h('input', { ...attrs, type: props.type || 'text', value: props.modelValue, class: 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500', onInput: (event) => emit('update:modelValue', event.target.value) }),
+      h('span', { class: 'block text-[11px] font-bold text-slate-500 uppercase mb-1 tracking-wider' }, props.label),
+      h('input', { 
+        ...attrs, 
+        type: props.type || 'text', 
+        value: props.modelValue, 
+        class: [
+          'w-full px-3.5 py-2 border rounded-lg text-sm bg-slate-50/20 focus:outline-none focus:ring-4 transition-all duration-200',
+          props.error 
+            ? 'border-red-500 hover:border-red-600 focus:border-red-500 focus:ring-red-500/10' 
+            : 'border-slate-200 hover:border-slate-300 focus:border-teal-500 focus:ring-teal-500/10'
+        ],
+        onInput: (event) => emit('update:modelValue', event.target.value) 
+      }),
+      props.error ? h('span', { class: 'block mt-1 text-xs text-red-500 font-semibold' }, props.error) : null
     ])
   },
 }
 
 const FormTextarea = {
-  props: ['label', 'modelValue'],
+  props: ['label', 'modelValue', 'error'],
   emits: ['update:modelValue'],
   setup(props, { attrs, emit }) {
     return () => h('label', { class: 'block' }, [
-      h('span', { class: 'block text-xs font-bold text-slate-500 uppercase mb-1' }, props.label),
-      h('textarea', { ...attrs, rows: 3, value: props.modelValue, class: 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500', onInput: (event) => emit('update:modelValue', event.target.value) }),
+      h('span', { class: 'block text-[11px] font-bold text-slate-500 uppercase mb-1 tracking-wider' }, props.label),
+      h('textarea', { 
+        ...attrs, 
+        rows: 3, 
+        value: props.modelValue, 
+        class: [
+          'w-full px-3.5 py-2 border rounded-lg text-sm bg-slate-50/20 focus:outline-none focus:ring-4 transition-all duration-200',
+          props.error 
+            ? 'border-red-500 hover:border-red-600 focus:border-red-500 focus:ring-red-500/10' 
+            : 'border-slate-200 hover:border-slate-300 focus:border-teal-500 focus:ring-teal-500/10'
+        ],
+        onInput: (event) => emit('update:modelValue', event.target.value) 
+      }),
+      props.error ? h('span', { class: 'block mt-1 text-xs text-red-500 font-semibold' }, props.error) : null
     ])
   },
 }
 
 const FormSelect = {
-  props: ['label', 'options', 'modelValue', 'compact'],
+  props: ['label', 'options', 'modelValue', 'compact', 'error'],
   emits: ['update:modelValue'],
   setup(props, { attrs, emit }) {
     return () => h('label', { class: props.compact ? 'block min-w-32' : 'block' }, [
-      h('span', { class: 'block text-xs font-bold text-slate-500 uppercase mb-1' }, props.label),
-      h('select', { ...attrs, value: props.modelValue, class: 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-teal-500 bg-white', onChange: (event) => emit('update:modelValue', event.target.value) }, (props.options || []).map((option) => h('option', { value: option }, option))),
+      h('span', { class: 'block text-[11px] font-bold text-slate-500 uppercase mb-1 tracking-wider' }, props.label),
+      h('select', { 
+        ...attrs, 
+        value: props.modelValue, 
+        class: [
+          'w-full px-3.5 py-2 border rounded-lg text-sm focus:outline-none focus:ring-4 transition-all duration-200 bg-white',
+          props.error 
+            ? 'border-red-500 hover:border-red-600 focus:border-red-500 focus:ring-red-500/10' 
+            : 'border-slate-200 hover:border-slate-300 focus:border-teal-500 focus:ring-teal-500/10'
+        ],
+        onChange: (event) => emit('update:modelValue', event.target.value) 
+      }, (props.options || []).map((option) => h('option', { value: option }, option))),
+      props.error ? h('span', { class: 'block mt-1 text-xs text-red-500 font-semibold' }, props.error) : null
     ])
   },
 }
@@ -1174,9 +2308,14 @@ const FormCheckbox = {
   props: ['label', 'modelValue'],
   emits: ['update:modelValue'],
   setup(props, { attrs, emit }) {
-    return () => h('label', { ...attrs, class: 'flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2' }, [
-      h('span', { class: 'text-sm font-semibold text-slate-700' }, props.label),
-      h('input', { type: 'checkbox', checked: Boolean(props.modelValue), class: 'accent-teal-600', onChange: (event) => emit('update:modelValue', event.target.checked ? 1 : 0) }),
+    return () => h('label', { ...attrs, class: 'flex items-center gap-3 py-2 cursor-pointer select-none group' }, [
+      h('input', { 
+        type: 'checkbox', 
+        checked: Boolean(props.modelValue), 
+        class: 'w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500 accent-teal-600 transition duration-150', 
+        onChange: (event) => emit('update:modelValue', event.target.checked ? 1 : 0) 
+      }),
+      h('span', { class: 'text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors duration-150' }, props.label),
     ])
   },
 }
@@ -1196,5 +2335,41 @@ const FormCheckbox = {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+:deep(.prose table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
+}
+:deep(.prose td), :deep(.prose th) {
+  border: 1px solid #e2e8f0;
+  padding: 0.3rem 0.5rem;
+  vertical-align: top;
+}
+:deep(.prose tr:nth-child(even)) {
+  background: #f8fafc;
+}
+:deep(.prose h2) {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0.75rem 0 0.25rem;
+  color: #1e293b;
+}
+:deep(.prose h3) {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0.5rem 0 0.25rem;
+  color: #334155;
+}
+:deep(.prose ul) {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+:deep(.prose hr) {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  margin: 0.75rem 0;
 }
 </style>

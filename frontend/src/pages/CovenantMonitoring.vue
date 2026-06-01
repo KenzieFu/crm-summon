@@ -3,6 +3,13 @@
     <LayoutHeader>
       <template #left-header>
         <div class="flex min-w-0 items-center gap-3">
+          <button
+            v-if="isMobile && !showMobileSidebar"
+            @click="showMobileSidebar = true"
+            class="mr-2 p-1 text-gray-500 rounded hover:bg-gray-100 flex items-center shrink-0"
+          >
+            <FeatherIcon name="menu" class="h-5 w-5" />
+          </button>
           <div
             class="flex h-9 w-9 items-center justify-center rounded-[12px] bg-gradient-to-br from-[#FF6600] to-[#CC5200]"
           >
@@ -19,12 +26,12 @@
 
     <div class="flex flex-1 min-h-0 overflow-hidden">
       <!-- ── Left Sidebar ── -->
-      <div class="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0">
+      <div v-if="!isMobile || showMobileSidebar" class="w-full md:w-52 bg-white border-r border-gray-200 flex flex-col shrink-0 h-full">
         <div class="p-3 space-y-0.5">
           <button
             v-for="nav in navItems"
             :key="nav.id"
-            @click="activeNav = nav.id"
+            @click="activeNav = nav.id; if (isMobile) showMobileSidebar = false"
             class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-all text-left"
             :class="
               activeNav === nav.id
@@ -75,14 +82,14 @@
       </div>
 
       <!-- ── Main Content ── -->
-      <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div v-if="!isMobile || !showMobileSidebar" class="flex-1 flex flex-col min-w-0 overflow-hidden">
         <!-- DASHBOARD -->
         <div
           v-if="activeNav === 'dashboard'"
           class="flex-1 overflow-y-auto p-5 space-y-5"
         >
           <!-- Stat cards -->
-          <div class="grid grid-cols-4 gap-4">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div
               v-for="stat in dashStats"
               :key="stat.label"
@@ -114,10 +121,10 @@
           </div>
 
           <!-- Charts row -->
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- Breach Trend -->
             <div
-              class="col-span-2 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
+              class="col-span-1 lg:col-span-2 bg-white rounded-xl border border-gray-200 p-4 shadow-sm"
             >
               <div class="flex items-center justify-between mb-3">
                 <div>
@@ -253,7 +260,7 @@
           </div>
 
           <!-- Bottom row -->
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Active Breaches -->
             <div
               class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
@@ -396,7 +403,7 @@
                 >BETA</span
               >
             </div>
-            <div class="grid grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div
                 v-for="pred in aiPredictions"
                 :key="pred.id"
@@ -494,9 +501,9 @@
           </div>
           <div class="flex-1 overflow-y-auto p-5">
             <div
-              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto"
             >
-              <table class="w-full text-xs">
+              <table class="w-full text-xs min-w-[800px]">
                 <thead>
                   <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left font-semibold text-gray-500">
@@ -657,9 +664,9 @@
           </div>
           <div class="flex-1 overflow-y-auto p-5">
             <div
-              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto"
             >
-              <table class="w-full text-xs">
+              <table class="w-full text-xs min-w-[800px]">
                 <thead>
                   <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left font-semibold text-gray-500">
@@ -970,7 +977,7 @@
             </button>
           </div>
           <div class="flex-1 overflow-y-auto p-5">
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div v-for="col in cureColumns" :key="col.id" class="space-y-3">
                 <div class="flex items-center gap-2 px-1">
                   <div class="w-2 h-2 rounded-full" :class="col.dot" />
@@ -1055,9 +1062,9 @@
           </div>
           <div class="flex-1 overflow-y-auto p-5">
             <div
-              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+              class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden overflow-x-auto"
             >
-              <table class="w-full text-xs">
+              <table class="w-full text-xs min-w-[800px]">
                 <thead>
                   <tr class="border-b border-gray-100 bg-gray-50">
                     <th class="px-5 py-3 text-left font-semibold text-gray-500">
@@ -1145,7 +1152,7 @@
 
         <!-- COVENANT REPORTS -->
         <div v-else-if="activeNav === 'reports'" class="flex-1 overflow-y-auto p-5">
-          <div class="grid grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div
               v-for="rep in covReports"
               :key="rep.id"
@@ -1270,7 +1277,7 @@
             <h3 class="text-sm font-bold text-gray-800 mb-3">
               {{ __("Scenario Simulation") }}
             </h3>
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div>
                 <label class="text-[10px] font-semibold text-gray-500 mb-1.5 block">{{
                   __("Simulate Revenue Drop")
@@ -1450,7 +1457,7 @@
                 </div>
                 <h4 class="text-sm font-bold text-gray-800">{{ __("Submit Financial Ratios") }}</h4>
               </div>
-              <div class="grid grid-cols-2 gap-4 mb-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label class="block text-xs font-semibold text-gray-600 mb-1">Borrower / Facility <span class="text-red-400">*</span></label>
                   <select v-model="submissionForm.facility" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]">
@@ -1660,7 +1667,7 @@
             <label class="block text-xs font-semibold text-gray-600 mb-1">Facility / Borrower <span class="text-red-400">*</span></label>
             <input v-model="taskForm.facility" type="text" placeholder="e.g. PT Maju Bersama" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]" />
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-semibold text-gray-600 mb-1">Priority</label>
               <select v-model="taskForm.priority" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]">
@@ -1718,7 +1725,7 @@
             <label class="block text-xs font-semibold text-gray-600 mb-1">Reason <span class="text-red-400">*</span></label>
             <input v-model="waiverForm.reason" type="text" placeholder="e.g. Post-pandemic recovery" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]" />
           </div>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-semibold text-gray-600 mb-1">Waiver Expiry</label>
               <input v-model="waiverForm.expiry" type="date" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]" />
@@ -1784,9 +1791,25 @@
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { FeatherIcon } from "frappe-ui";
 import LayoutHeader from "@/components/LayoutHeader.vue";
+
+const isMobile = ref(false);
+const showMobileSidebar = ref(true);
+
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768;
+};
+
+onMounted(() => {
+  checkMobile();
+  window.addEventListener("resize", checkMobile);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", checkMobile);
+});
 
 // ── Nav ──
 const activeNav = ref("dashboard");

@@ -20,7 +20,7 @@
     </LayoutHeader>
     <div class="flex flex-1 min-h-0 overflow-hidden">
     <!-- Sidebar -->
-    <div class="w-72 border-r border-gray-200 bg-white flex flex-col shrink-0">
+    <div v-if="!isMobile || !selected" class="w-full md:w-72 border-r border-gray-200 bg-white flex flex-col shrink-0 h-full">
       <div class="px-4 py-2.5 border-b border-gray-200">
         <p class="text-xs text-gray-500">{{ filteredApps.length }} {{ __('applications') }}</p>
       </div>
@@ -56,7 +56,7 @@
     </div>
 
     <!-- Main -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <div v-if="!isMobile || selected" class="flex-1 flex flex-col min-w-0 overflow-hidden h-full">
       <!-- Empty state -->
       <div v-if="!selected" class="flex-1 flex flex-col items-center justify-center p-8">
         <div class="w-16 h-16 rounded-full bg-[#FFF8F2] flex items-center justify-center mb-4">
@@ -87,6 +87,10 @@
             </div>
           </div>
           <div class="flex items-center gap-2 shrink-0">
+            <button v-if="isMobile" @click="selected = null" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1 mr-1">
+              <FeatherIcon name="chevron-left" class="h-4 w-4" />
+              <span>{{ __('Queue') }}</span>
+            </button>
             <span v-if="autoSaved" class="text-[10px] text-gray-400 flex items-center gap-1">
               <FeatherIcon name="check" class="h-3 w-3 text-[#FF6600]" />{{ __('Auto-saved') }}
             </span>
@@ -988,7 +992,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineComponent, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineComponent, h } from 'vue'
 import { FeatherIcon, call } from 'frappe-ui'
 import LayoutHeader from '@/components/LayoutHeader.vue'
 
@@ -1044,6 +1048,10 @@ const npwpStatus = ref('')
 const ocrResult = ref(null)
 const uploadProgress = ref(0)
 const uploadingFile = ref('')
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768
+}
 
 const form = ref({
   borrower_name: '', borrower_type: 'Individual', npwp: '', phone: '', email: '',
@@ -1416,9 +1424,16 @@ const restructures = [
 // Auto-save every 30s when step <= 3
 let autoSaveTimer = null
 onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
   autoSaveTimer = setInterval(() => {
     if (selected.value && currentStep.value <= 3) triggerAutoSaved()
   }, 30000)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+  if (autoSaveTimer) clearInterval(autoSaveTimer)
 })
 </script>
 

@@ -101,13 +101,33 @@ export const summonModules = [
   },
   {
     label: 'Workflow Engine',
+    sheet: '27_WorkflowEngine',
+    description:
+      'Visual BPMN-like flow designer for dynamic workflow journey orchestration with conditional routing, complex approval matrix, and delegation across all modules.',
+    priority: 'High',
+    status: 'available',
+    routeName: 'Workflow List',
+    href: '/crm/lending-risk/workflow-engine',
+    group: 'Lending & Risk',
+    icon: 'git-pull-request',
+    features: [
+      'Visual Flow Canvas',
+      'Dynamic Form Control',
+      'Conditional Routing',
+      'Complex Approval Matrix',
+      'Flow Versioning',
+      'Execution Monitoring',
+    ],
+  },
+  {
+    label: 'Workflow Engine',
     sheet: '06_Workflow',
     description:
       'No-code workflow builder with approvals, SLA timers, conditional branching, and automation nodes.',
     priority: 'High',
     status: 'available',
-    href: '/crm/admin-platform/workflow-engine',
-    routeName: 'Workflow Engine',
+    href: '/crm/lending-risk/workflow-engine',
+    routeName: 'Workflow List',
     group: 'Admin & Platform',
     icon: 'git-branch',
     features: [
@@ -156,14 +176,11 @@ export const summonModules = [
     ],
   },
   {
-    label: 'Omnichannel Communication',
+    label: 'Omnichannel',
     sheet: '10_Omnichannel',
-    description:
-      'Unified inbox for WhatsApp, email, SMS, in-app messaging, templates, AI replies, and routing.',
-    priority: 'Medium',
-    status: 'partial',
-    href: '/crm/channels-portal/omnichannel-communication',
-    routeName: 'Omnichannel Communication',
+    sheetOrder: ['10_Omnichannel'],
+    href: '/crm/channels-portal/omnichannel-workspace',
+    routeName: 'Omnichannel Workspace',
     group: 'Channels & Portal',
     icon: 'message-square',
     features: [
@@ -172,6 +189,8 @@ export const summonModules = [
       'Email Conversations',
       'In-App Chat',
       'Message Templates',
+      'SLA & Routing',
+      'Customer Context',
     ],
   },
   {
@@ -180,8 +199,9 @@ export const summonModules = [
     description:
       'Aging buckets, delinquency tracking, PTP management, AI prioritization, visit scheduling, and legal escalation.',
     priority: 'High',
-    status: 'planned',
-    href: '/crm/modules/collections',
+    status: 'available',
+    href: '/crm/lending-risk/collections',
+    routeName: 'Collections',
     group: 'Lending & Risk',
     icon: 'repeat',
     features: [
@@ -237,7 +257,8 @@ export const summonModules = [
       'Granular permissions, approval rights, branch restrictions, and data visibility rules.',
     priority: 'High',
     status: 'available',
-    routeName: 'User List',
+    routeName: 'RBAC Admin',
+    href: '/crm/admin-platform/rbac',
     group: 'Admin & Platform',
     icon: 'shield',
     features: [
@@ -328,13 +349,13 @@ export const summonModules = [
     label: 'Rules Engine',
     sheet: '21_RulesEngine',
     description:
-      'Configurable IF-THEN rules, decision trees, auto-routing, and exception handling.',
+      'Centralized business rules configuration with visual IF-THEN builder, decision trees, simulation sandbox, and approval workflows.',
     priority: 'High',
     status: 'available',
     href: '/crm/admin-platform/rules-engine',
     routeName: 'Rules Engine',
     group: 'Admin & Platform',
-    icon: 'filter',
+    icon: 'zap',
     features: [
       'Rule Builder UI',
       'Decision Tree Builder',
@@ -349,8 +370,9 @@ export const summonModules = [
     description:
       'Multi-level voting, quorum tracking, committee scheduling, e-signature, and decision recording.',
     priority: 'High',
-    status: 'planned',
-    href: '/crm/modules/committee-approval',
+    status: 'available',
+    href: '/crm/lending-risk/committee-approval',
+    routeName: 'Committee Approval',
     group: 'Lending & Risk',
     icon: 'users',
     features: [
@@ -369,6 +391,7 @@ export const summonModules = [
     priority: 'High',
     status: 'available',
     href: '/crm/lending-risk/covenant-monitoring',
+    routeName: 'Covenant Monitoring',
     group: 'Lending & Risk',
     icon: 'alert-triangle',
     features: [
@@ -394,8 +417,11 @@ export const summonModules = [
       'Vendor Directory',
       'Vendor Onboarding',
       'Contract Management',
-      'SLA Definition per Vendor',
+      'Service Request Workflow',
+      'SLA Tracking',
       'Performance Scoring',
+      'Compliance Monitoring',
+      'Vendor Portal',
     ],
   },
   {
@@ -424,6 +450,7 @@ export const summonModules = [
       'Mobile-responsive workspace for field Relationship Managers, lead capture, visits, and on-the-go LOS actions.',
     priority: 'Medium',
     status: 'available',
+    pwaInstall: true,
     href: '/crm/dashboard',
     group: 'Channels & Portal',
     icon: 'smartphone',

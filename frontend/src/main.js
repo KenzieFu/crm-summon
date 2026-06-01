@@ -1,5 +1,23 @@
 import './index.css'
 
+if (typeof window !== 'undefined' && typeof window.frappe === 'undefined') {
+  window.frappe = {
+    session: { user: 'Guest' },
+    boot: {},
+    _: (msg) => msg,
+    realtime: { on: () => {}, off: () => {}, publish: () => {} },
+  }
+}
+
+window['__'] =
+  window['__'] ||
+  function (message, replace) {
+    if (!replace) return message
+    return String(message).replace(/{(\d+)}/g, function (match, number) {
+      return typeof replace[number] !== 'undefined' ? replace[number] : match
+    })
+  }
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createDialog } from './utils/dialogs'
@@ -42,15 +60,22 @@ let pinia = createPinia()
 
 let app = createApp(App)
 
+function mountApp() {
+  app.use(router)
+  app.use(telemetryPlugin, { app_name: 'crm' })
+  socket = initSocket()
+  app.config.globalProperties.$socket = socket
+  app.provide('socket', socket)
+  app.mount('#app')
+}
+
 setConfig('resourceFetcher', frappeRequest)
 app.use(FrappeUI)
 app.use(pinia)
-app.use(router)
 app.use(translationPlugin)
 for (let key in globalComponents) {
   app.component(key, globalComponents[key])
 }
-app.use(telemetryPlugin, { app_name: 'crm' })
 
 app.config.globalProperties.$dialog = createDialog
 
@@ -59,21 +84,24 @@ if (import.meta.env.DEV) {
   frappeRequest({
     url: '/api/method/crm.www.crm.get_context_for_dev',
     method: 'GET',
-  }).then((values) => {
-      for (let key in values) {
-        window[key] = values[key]
+  })
+    .then((values) => {
+      const data = values?.message || values
+      for (let key in data) {
+        window[key] = data[key]
       }
-      socket = initSocket()
-      app.config.globalProperties.$socket = socket
-      app.provide('socket', socket)
-      app.mount('#app')
-    },
-  )
+    })
+    .catch((error) => {
+      console.warn(
+        '[crm] Failed to load dev context from backend, continuing with fallback context.',
+        error,
+      )
+    })
+    .finally(() => {
+      mountApp()
+    })
 } else {
-  socket = initSocket()
-  app.config.globalProperties.$socket = socket
-  app.provide('socket', socket)
-  app.mount('#app')
+  mountApp()
 }
 
 if (import.meta.env.DEV) {
