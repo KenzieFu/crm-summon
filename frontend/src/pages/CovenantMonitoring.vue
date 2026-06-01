@@ -519,6 +519,9 @@
                       {{ __("Frequency") }}
                     </th>
                     <th class="px-4 py-3 text-left font-semibold text-gray-500">
+                      {{ __("Currency") }}
+                    </th>
+                    <th class="px-4 py-3 text-left font-semibold text-gray-500">
                       {{ __("Facilities") }}
                     </th>
                     <th class="px-4 py-3 text-left font-semibold text-gray-500">
@@ -586,6 +589,12 @@
                       {{ cov.metric }}
                     </td>
                     <td class="px-4 py-3 text-gray-500">{{ cov.frequency }}</td>
+                    <td class="px-4 py-3">
+                      <span
+                        class="text-[10px] font-semibold rounded px-1.5 py-0.5"
+                        :class="cov.currency === 'USD' ? 'bg-blue-50 text-blue-700' : cov.currency === 'EUR' ? 'bg-indigo-50 text-indigo-700' : cov.currency === 'SGD' ? 'bg-teal-50 text-teal-700' : cov.currency === 'JPY' ? 'bg-pink-50 text-pink-700' : 'bg-gray-100 text-gray-600'"
+                      >{{ cov.currency }}</span>
+                    </td>
                     <td class="px-4 py-3 font-semibold text-gray-700">
                       {{ cov.facilities }}
                     </td>
@@ -1330,6 +1339,109 @@
           </div>
         </div>
 
+        <!-- ACCELERATION TRIGGER -->
+        <div
+          v-else-if="activeNav === 'accelerate'"
+          class="flex-1 flex flex-col overflow-hidden"
+        >
+          <div
+            class="bg-white border-b border-gray-200 px-5 py-3 shrink-0 flex items-center gap-3"
+          >
+            <h3 class="text-sm font-semibold text-gray-800">
+              {{ __("Acceleration Trigger") }}
+            </h3>
+            <span class="text-[11px] text-gray-400"
+              >{{ accelerations.length }} {{ __("triggered") }}</span
+            >
+            <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 ml-auto">
+              <button
+                v-for="s in ['All', 'Triggered', 'Pending Review', 'Resolved']"
+                :key="s"
+                @click="accelFilter = s"
+                class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+                :class="
+                  accelFilter === s ? 'bg-white text-[#CC5200] shadow-sm' : 'text-gray-500'
+                "
+              >
+                {{ s }}
+              </button>
+            </div>
+          </div>
+          <div class="flex-1 overflow-y-auto p-5 space-y-3">
+            <div
+              v-for="a in filteredAccelerations"
+              :key="a.id"
+              class="bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition-all"
+              :class="
+                a.status === 'Triggered'
+                  ? 'border-red-300'
+                  : a.status === 'Pending Review'
+                  ? 'border-amber-200'
+                  : 'border-green-200'
+              "
+            >
+              <div class="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <div class="flex items-center gap-2 mb-1">
+                    <span
+                      class="rounded-full px-2 py-0.5 text-[9px] font-bold"
+                      :class="
+                        a.status === 'Triggered'
+                          ? 'bg-red-100 text-red-700'
+                          : a.status === 'Pending Review'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-green-100 text-green-700'
+                      "
+                    >
+                      {{ a.status }}
+                    </span>
+                    <span class="text-[10px] text-gray-400">Since {{ a.breachSince }}</span>
+                  </div>
+                  <h4 class="text-sm font-bold text-gray-800">{{ a.facility }}</h4>
+                  <p class="text-xs text-gray-500">
+                    {{ a.covenant }} — {{ a.triggerCondition }}
+                  </p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="text-[10px] text-gray-400">{{ __("Loan Amount") }}</p>
+                  <p class="text-sm font-black text-red-600">{{ a.loanAmount }}</p>
+                </div>
+              </div>
+              <div class="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 mb-3">
+                <p class="mb-1">
+                  <span class="font-semibold">{{ __("Trigger Rule:") }}</span>
+                  {{ a.rule }}
+                </p>
+                <p>
+                  <span class="font-semibold">{{ __("Next Step:") }}</span>
+                  {{ a.nextStep }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  @click="showToast('Loan restructure initiated for ' + a.facility)"
+                  class="flex items-center gap-1.5 rounded-lg bg-[#FF6600] text-white px-3 py-1.5 text-xs font-semibold hover:bg-[#CC5200] transition-colors"
+                >
+                  <FeatherIcon name="refresh-cw" class="h-3 w-3" />{{ __("Restructure") }}
+                </button>
+                <button
+                  @click="resolveAcceleration(a)"
+                  class="flex items-center gap-1.5 rounded-lg border border-[#006699] text-[#006699] px-3 py-1.5 text-xs font-semibold hover:bg-[#E6F4FA] transition-colors"
+                >
+                  <FeatherIcon name="check-circle" class="h-3 w-3" />{{ __("Mark Resolved") }}
+                </button>
+                <button
+                  @click="showToast('Escalation notice sent for ' + a.facility)"
+                  class="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-500 px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  <FeatherIcon name="bell" class="h-3 w-3" />{{ __("Escalate") }}
+                </button>
+                <span class="ml-auto text-[10px] text-gray-400">RM: {{ a.rm }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- BORROWER SUBMISSION -->
         <div v-else-if="activeNav === 'borrower'" class="flex-1 flex flex-col overflow-hidden">
           <div class="bg-white border-b border-gray-200 px-5 py-3 shrink-0 flex items-center gap-3">
@@ -1485,7 +1597,7 @@
             <label class="block text-xs font-semibold text-gray-600 mb-1">Covenant Name <span class="text-red-400">*</span></label>
             <input v-model="covForm.name" type="text" placeholder="e.g. DSCR Minimum 1.25x" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]" />
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-3 gap-3">
             <div>
               <label class="block text-xs font-semibold text-gray-600 mb-1">Type</label>
               <select v-model="covForm.type" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]">
@@ -1501,6 +1613,16 @@
                 <option>Quarterly</option>
                 <option>Semi-Annual</option>
                 <option>Annual</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-600 mb-1">Currency</label>
+              <select v-model="covForm.currency" class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#FF8533]">
+                <option>IDR</option>
+                <option>USD</option>
+                <option>EUR</option>
+                <option>SGD</option>
+                <option>JPY</option>
               </select>
             </div>
           </div>
@@ -1711,6 +1833,13 @@ const navItems = [
     badgeColor: "bg-amber-100 text-amber-700",
   },
   { id: "waiver", label: "Waiver Management", icon: "file-minus" },
+  {
+    id: "accelerate",
+    label: "Acceleration Trigger",
+    icon: "zap",
+    badge: "2",
+    badgeColor: "bg-red-100 text-red-700",
+  },
   { id: "borrower", label: "Borrower Submission", icon: "upload-cloud" },
   { id: "changelog", label: "Change Log", icon: "clock" },
   { id: "sensitivity", label: "Sensitivity Analysis", icon: "activity" },
@@ -1948,6 +2077,7 @@ const covenantLibrary = ref([
     metric: "DSCR ≥ 1.25",
     frequency: "Monthly",
     facilities: 8,
+    currency: "IDR",
     tags: ["Cash Flow", "Core"],
     icon: "trending-up",
     template: true,
@@ -1959,6 +2089,7 @@ const covenantLibrary = ref([
     metric: "DER ≤ 3.0",
     frequency: "Quarterly",
     facilities: 12,
+    currency: "IDR",
     tags: ["Leverage", "Core"],
     icon: "bar-chart",
     template: true,
@@ -1970,6 +2101,7 @@ const covenantLibrary = ref([
     metric: "EBITDA ≥ Target",
     frequency: "Quarterly",
     facilities: 6,
+    currency: "IDR",
     tags: ["Profitability"],
     icon: "dollar-sign",
     template: true,
@@ -1981,6 +2113,7 @@ const covenantLibrary = ref([
     metric: "CR ≥ 1.0",
     frequency: "Monthly",
     facilities: 9,
+    currency: "IDR",
     tags: ["Liquidity"],
     icon: "activity",
     template: true,
@@ -1992,6 +2125,7 @@ const covenantLibrary = ref([
     metric: "Valid Policy",
     frequency: "Annual",
     facilities: 15,
+    currency: "IDR",
     tags: ["Insurance", "Affirmative"],
     icon: "shield",
     template: true,
@@ -2003,6 +2137,7 @@ const covenantLibrary = ref([
     metric: "On-time Submission",
     frequency: "Quarterly",
     facilities: 20,
+    currency: "IDR",
     tags: ["Reporting"],
     icon: "file-text",
     template: true,
@@ -2014,6 +2149,7 @@ const covenantLibrary = ref([
     metric: "Negative Covenant",
     frequency: "Continuous",
     facilities: 7,
+    currency: "IDR",
     tags: ["Restriction", "Negative"],
     icon: "minus-circle",
     template: false,
@@ -2025,6 +2161,7 @@ const covenantLibrary = ref([
     metric: "Prior Consent",
     frequency: "Continuous",
     facilities: 5,
+    currency: "IDR",
     tags: ["Asset", "Negative"],
     icon: "lock",
     template: false,
@@ -2564,11 +2701,11 @@ function submitBorrowerForm() {
 // ── Add / Edit Covenant ──
 const showAddCovForm = ref(false);
 const editingCov = ref(null);
-const covForm = ref({ name: '', type: 'Financial', frequency: 'Quarterly', metric: '', tags: '' });
+const covForm = ref({ name: '', type: 'Financial', frequency: 'Quarterly', currency: 'IDR', metric: '', tags: '' });
 
 function openAddCovenant() {
   editingCov.value = null;
-  covForm.value = { name: '', type: 'Financial', frequency: 'Quarterly', metric: '', tags: '' };
+  covForm.value = { name: '', type: 'Financial', frequency: 'Quarterly', currency: 'IDR', metric: '', tags: '' };
   showAddCovForm.value = true;
 }
 
@@ -2578,6 +2715,7 @@ function openEditCovenant(cov) {
     name: cov.name,
     type: cov.type,
     frequency: cov.frequency,
+    currency: cov.currency || 'IDR',
     metric: cov.metric === '—' ? '' : cov.metric,
     tags: cov.tags.join(', '),
   };
@@ -2601,12 +2739,13 @@ function submitAddCovenant() {
         name: covForm.value.name,
         type: covForm.value.type,
         frequency: covForm.value.frequency,
+        currency: covForm.value.currency || 'IDR',
         metric: covForm.value.metric || '—',
         tags,
         icon,
       };
     }
-    addChangelogEntry('Edited', covForm.value.name, `Type: ${covForm.value.type}, Metric: ${covForm.value.metric || '—'}`)
+    addChangelogEntry('Edited', covForm.value.name, `Type: ${covForm.value.type}, Currency: ${covForm.value.currency}`)
     showToast('Covenant updated');
   } else {
     covenantLibrary.value.unshift({
@@ -2615,6 +2754,7 @@ function submitAddCovenant() {
       type: covForm.value.type,
       metric: covForm.value.metric || '—',
       frequency: covForm.value.frequency,
+      currency: covForm.value.currency || 'IDR',
       facilities: 0,
       tags,
       icon,
@@ -2694,6 +2834,69 @@ function submitAddWaiver() {
   });
   showAddWaiverForm.value = false;
   showToast('Waiver request submitted');
+}
+
+// ── Acceleration Trigger ──
+const accelFilter = ref("All");
+const accelerations = ref([
+  {
+    id: 1,
+    facility: "PT Maju Bersama — Working Capital Rp 5B",
+    covenant: "DSCR Minimum 1.25x",
+    loanAmount: "Rp 5.000.000.000",
+    status: "Triggered",
+    breachSince: "30 Apr 2026",
+    triggerCondition: "DSCR below 1.1x for 90+ consecutive days",
+    rule: "Financial Covenant Cross-Default — 3 consecutive breach periods triggers automatic acceleration per §8.2 of credit agreement.",
+    nextStep: "Immediate RM escalation required. Borrower must cure within 14 calendar days or loan enters acceleration.",
+    rm: "Reza M.",
+  },
+  {
+    id: 2,
+    facility: "CV Teknik Jaya — Investment Loan Rp 2.5B",
+    covenant: "DER Maximum 3.0x",
+    loanAmount: "Rp 2.500.000.000",
+    status: "Triggered",
+    breachSince: "31 Mar 2026",
+    triggerCondition: "DER above 3.5x for 60+ consecutive days",
+    rule: "Leverage Covenant Breach — 2 consecutive quarterly breach periods triggers cross-default per §10.4 of credit agreement.",
+    nextStep: "Restructuring proposal required within 30 days. Acceleration effective if no restructuring agreement reached.",
+    rm: "Sari D.",
+  },
+  {
+    id: 3,
+    facility: "Budi Santoso — KPR Rp 800M",
+    covenant: "Insurance Renewal",
+    loanAmount: "Rp 800.000.000",
+    status: "Pending Review",
+    breachSince: "15 May 2026",
+    triggerCondition: "Insurance lapsed > 30 days",
+    rule: "Non-Financial Covenant — Insurance lapse triggers mandatory review per §5.1. Acceleration may be invoked if not remedied within 60 days.",
+    nextStep: "Awaiting insurance certificate from borrower. Follow-up scheduled.",
+    rm: "Ahmad F.",
+  },
+  {
+    id: 4,
+    facility: "CV Teknik Jaya — Investment Loan Rp 2.5B",
+    covenant: "EBITDA Minimum Rp 2B",
+    loanAmount: "Rp 2.500.000.000",
+    status: "Pending Review",
+    breachSince: "31 Mar 2026",
+    triggerCondition: "EBITDA below 75% threshold for 2 consecutive quarters",
+    rule: "Profitability Covenant — Sustained underperformance triggers acceleration review per §8.5 of credit agreement.",
+    nextStep: "Borrower turnaround plan due. Review scheduled.",
+    rm: "Sari D.",
+  },
+]);
+
+const filteredAccelerations = computed(() => {
+  if (accelFilter.value === "All") return accelerations.value;
+  return accelerations.value.filter((a) => a.status === accelFilter.value);
+});
+
+function resolveAcceleration(a) {
+  a.status = "Resolved";
+  showToast(`Acceleration resolved for ${a.facility}`);
 }
 </script>
 

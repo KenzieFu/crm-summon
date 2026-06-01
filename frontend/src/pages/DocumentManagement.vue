@@ -626,6 +626,37 @@
               </div>
             </div>
 
+            <!-- Comments tab -->
+            <div v-if="panelTab === 'comments'" class="p-4 flex flex-col flex-1 min-h-0">
+              <div class="flex items-center justify-between mb-3">
+                <span class="text-[10px] font-semibold text-gray-700 uppercase tracking-wide">{{ __("Comments & Annotations") }}</span>
+                <span class="text-[9px] text-gray-400">{{ docComments.length }} comments</span>
+              </div>
+              <div class="flex-1 space-y-3 overflow-y-auto min-h-0 mb-3">
+                <div v-for="cmt in docComments" :key="cmt.id" class="flex gap-2.5">
+                  <div class="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold text-white" :class="cmt.bg">{{ cmt.user[0] }}</div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <span class="text-[10px] font-bold text-gray-700">{{ cmt.user }}</span>
+                      <span class="text-[9px] text-gray-400">{{ cmt.time }}</span>
+                    </div>
+                    <p class="text-[10px] text-gray-600 leading-relaxed">{{ cmt.text }}</p>
+                    <div v-if="cmt.annotation" class="mt-1.5 flex items-center gap-1.5 text-[9px] text-[#006699] bg-[#E6F4FA] rounded-lg px-2 py-1 inline-flex">
+                      <FeatherIcon name="map-pin" class="h-3 w-3" />
+                      <span>{{ cmt.annotation }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-gray-100 pt-3 flex gap-2">
+                <input v-model="newComment" type="text" :placeholder="__('Add a comment...')" class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-[#FF6600]"
+                  @keyup.enter="addComment" />
+                <button @click="addComment" :disabled="!newComment.trim()" class="shrink-0 rounded-lg bg-[#FF6600] px-3 py-2 text-xs font-semibold text-white hover:bg-[#CC5200] disabled:opacity-40 transition-colors">
+                  <FeatherIcon name="send" class="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
             <!-- Versions tab -->
             <div v-if="panelTab === 'versions'" class="p-4">
               <div class="space-y-2">
@@ -694,6 +725,122 @@
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── APPROVAL WORKFLOWS ── -->
+      <div v-if="activeView === 'approvals'" class="flex-1 flex flex-col overflow-hidden">
+        <div class="bg-white border-b border-gray-200 px-5 py-3 shrink-0 flex items-center gap-3">
+          <h3 class="text-sm font-semibold text-gray-800">{{ __("Document Approval Queue") }}</h3>
+          <span class="text-[11px] text-gray-400">{{ approvalQueue.length }} pending</span>
+          <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 ml-auto">
+            <button v-for="s in ['All','Pending','Approved','Rejected']" :key="s" @click="approvalFilter = s"
+              class="px-3 py-1.5 rounded-md text-xs font-semibold transition-all"
+              :class="approvalFilter===s ? 'bg-white text-[#CC5200] shadow-sm' : 'text-gray-500'">
+              {{ s }}
+            </button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5 space-y-3">
+          <div v-for="a in filteredApprovals" :key="a.id"
+            class="bg-white rounded-xl border shadow-sm p-4 hover:shadow-md transition-all"
+            :class="a.status==='Pending' ? 'border-amber-200' : a.status==='Approved' ? 'border-green-200' : 'border-red-200'">
+            <div class="flex items-start justify-between gap-3 mb-3">
+              <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :class="fileIconBg(a.ext)">
+                  <span class="text-[9px] font-black" :class="fileIconColor(a.ext)">{{ a.ext.toUpperCase() }}</span>
+                </div>
+                <div>
+                  <h4 class="text-xs font-bold text-gray-800">{{ a.name }}</h4>
+                  <p class="text-[10px] text-gray-400">{{ a.customer }} · {{ a.docType }} · {{ a.uploaded }}</p>
+                </div>
+              </div>
+              <span class="rounded-full px-2 py-0.5 text-[9px] font-bold shrink-0"
+                :class="a.status==='Approved' ? 'bg-green-100 text-green-700' : a.status==='Rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'">
+                {{ a.status }}
+              </span>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 mb-3">
+              <p class="text-[10px] text-gray-500 mb-2">
+                <span class="font-semibold text-gray-700">{{ __("Approval Chain:") }}</span>
+                <span v-for="(step, i) in a.approvers" :key="step.name" class="inline-flex items-center gap-1">
+                  <span v-if="i>0" class="text-gray-300 mx-0.5">→</span>
+                  <span :class="step.done ? 'text-green-600 font-semibold' : step.current ? 'text-[#CC5200] font-bold' : 'text-gray-400'">
+                    {{ step.name }}
+                    <span v-if="step.done" class="text-[9px] text-green-500">✓</span>
+                  </span>
+                </span>
+              </p>
+            </div>
+            <div v-if="a.status==='Pending'" class="flex items-center gap-2">
+              <button @click="approveDoc(a)" class="flex items-center gap-1.5 rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-semibold hover:bg-green-700 transition-colors">
+                <FeatherIcon name="check-circle" class="h-3 w-3" />{{ __("Approve") }}
+              </button>
+              <button @click="rejectDoc(a)" class="flex items-center gap-1.5 rounded-lg border border-red-300 text-red-600 px-3 py-1.5 text-xs font-semibold hover:bg-red-50 transition-colors">
+                <FeatherIcon name="x-circle" class="h-3 w-3" />{{ __("Reject") }}
+              </button>
+              <button @click="previewDoc(a)" class="flex items-center gap-1.5 rounded-lg border border-gray-200 text-gray-500 px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 transition-colors">
+                <FeatherIcon name="eye" class="h-3 w-3" />{{ __("Review") }}
+              </button>
+            </div>
+            <div v-else class="text-[10px] text-gray-400">
+              {{ a.status==='Approved' ? '✓ Approved by ' + (a.approvedBy || 'System') + ' · ' + (a.approvedAt || '') : '✗ Rejected · ' + (a.rejectReason || '') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── MOBILE DOCUMENT CAPTURE ── -->
+      <div v-if="activeView === 'capture'" class="flex-1 overflow-y-auto p-5 flex flex-col items-center justify-center">
+        <div class="w-full max-w-md space-y-5">
+          <div class="text-center mb-2">
+            <div class="w-14 h-14 rounded-2xl bg-[#FFF0E6] flex items-center justify-center mx-auto mb-3">
+              <FeatherIcon name="camera" class="h-7 w-7 text-[#FF6600]" />
+            </div>
+            <h3 class="text-sm font-bold text-gray-800">{{ __("Mobile Document Capture") }}</h3>
+            <p class="text-xs text-gray-400 mt-1">{{ __("Capture documents directly from your mobile camera") }}</p>
+          </div>
+
+          <!-- Simulated Camera Viewfinder -->
+          <div class="bg-gray-900 rounded-2xl overflow-hidden border-4 border-gray-300 relative aspect-[3/4] max-h-[420px] mx-auto w-full">
+            <div class="absolute inset-0 flex items-center justify-center">
+              <div class="w-4/5 h-3/5 border-2 border-dashed border-[#FF8533]/60 rounded-xl flex flex-col items-center justify-center">
+                <FeatherIcon name="maximize" class="h-10 w-10 text-white/30 mb-2" />
+                <p class="text-[10px] text-white/40 text-center px-4">{{ __("Position document within frame") }}</p>
+              </div>
+            </div>
+            <!-- Corner markers -->
+            <div class="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-[#FF8533] rounded-tl-lg" />
+            <div class="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-[#FF8533] rounded-tr-lg" />
+            <div class="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-[#FF8533] rounded-bl-lg" />
+            <div class="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-[#FF8533] rounded-br-lg" />
+            <!-- Flash -->
+            <div class="absolute top-3 right-3 flex gap-1.5">
+              <button class="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center"><FeatherIcon name="zap" class="h-3.5 w-3.5 text-white/60" /></button>
+            </div>
+          </div>
+
+          <!-- Capture button -->
+          <div class="flex justify-center">
+            <button @click="simulateCapture" class="w-16 h-16 rounded-full border-4 border-white bg-[#FF6600] shadow-lg hover:bg-[#CC5200] transition-colors flex items-center justify-center">
+              <div class="w-12 h-12 rounded-full border-2 border-white" />
+            </button>
+          </div>
+
+          <!-- Captured items -->
+          <div v-if="capturedDocs.length" class="space-y-2">
+            <p class="text-xs font-semibold text-gray-600">{{ __("Captured Documents") }} ({{ capturedDocs.length }})</p>
+            <div v-for="cd in capturedDocs" :key="cd.id" class="flex items-center gap-3 p-3 rounded-lg bg-white border border-gray-200">
+              <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                <FeatherIcon name="image" class="h-5 w-5 text-gray-400" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-gray-800">{{ cd.name }}</p>
+                <p class="text-[10px] text-gray-400">{{ cd.size }} · OCR: <span :class="cd.ocr === 'Done' ? 'text-green-600' : 'text-amber-500'">{{ cd.ocr }}</span></p>
+              </div>
+              <button @click="addCapturedToLibrary(cd)" class="text-[10px] text-[#FF6600] font-semibold hover:underline shrink-0">{{ __("Add to Library") }}</button>
             </div>
           </div>
         </div>
@@ -1890,12 +2037,15 @@ const storagePercent = 76;
 const panelTabs = [
   { id: "info", label: "Info" },
   { id: "ocr", label: "OCR" },
+  { id: "comments", label: "Comments" },
   { id: "versions", label: "Versions" },
   { id: "audit", label: "Audit" },
 ];
 
 const views = [
   { id: "docs", icon: "list", label: "Documents" },
+  { id: "approvals", icon: "check-square", label: "Approvals" },
+  { id: "capture", icon: "camera", label: "Capture" },
   { id: "health", icon: "activity", label: "Health" },
   { id: "audit", icon: "shield", label: "Audit Log" },
   { id: "templates", icon: "layout", label: "Templates" },
@@ -2106,6 +2256,95 @@ const templates = [
     merge_fields: ["borrower_name", "overdue_amount", "days_past_due", "sp_level"],
   },
 ];
+
+// ── Document Approval Queue ──
+const approvalFilter = ref('All')
+const approvalQueue = ref([
+  { id: 1, name: 'Laporan_Keuangan_2024_Audit.xlsx', ext: 'xlsx', docType: 'Financial', customer: 'PT Maju Bersama', uploaded: '23 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: true, current: false }, { name: 'Risk Officer', done: false, current: true }, { name: 'Director', done: false, current: false }] },
+  { id: 2, name: 'SHM_Gudang_Bekasi.pdf', ext: 'pdf', docType: 'Collateral', customer: 'PT Maju Bersama', uploaded: '20 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: false, current: true }, { name: 'Risk Officer', done: false, current: false }] },
+  { id: 3, name: 'Rekening_Koran_BCA_Jan-Jun2026.pdf', ext: 'pdf', docType: 'Financial', customer: 'Budi Santoso', uploaded: '22 May 2026', status: 'Pending', approvers: [{ name: 'RM Review', done: false, current: true }, { name: 'Credit Head', done: false, current: false }] },
+  { id: 4, name: 'Perjanjian_Kredit_v2.1.docx', ext: 'docx', docType: 'Agreement', customer: 'PT Maju Bersama', uploaded: '24 May 2026', status: 'Approved', approvedBy: 'Dewi Kusuma', approvedAt: '24 May 10:15', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: true }, { name: 'Risk Officer', done: true }, { name: 'Director', done: true }] },
+  { id: 5, name: 'BPKB_Mesin_CNC_Haas.pdf', ext: 'pdf', docType: 'Collateral', customer: 'CV Teknik Jaya', uploaded: '8 May 2026', status: 'Rejected', rejectReason: 'Incomplete — missing appraisal report', approvers: [{ name: 'RM Review', done: true }, { name: 'Credit Head', done: false, current: false }] },
+])
+
+const filteredApprovals = computed(() => {
+  if (approvalFilter.value === 'All') return approvalQueue.value
+  return approvalQueue.value.filter(a => a.status === approvalFilter.value)
+})
+
+function approveDoc(a) {
+  a.status = 'Approved'
+  a.approvedBy = 'Current User'
+  a.approvedAt = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  showToast(`"${a.name}" approved`)
+}
+
+function rejectDoc(a) {
+  a.status = 'Rejected'
+  a.rejectReason = 'Rejected during review'
+  showToast(`"${a.name}" rejected`)
+}
+
+// ── Document Comments ──
+const newComment = ref('')
+const docComments = ref([
+  { id: 1, user: 'Dewi Kusuma', time: '24 May 11:00', text: 'Please verify the collateral appraisal report matches the market value stated.', bg: 'bg-[#FF6600]', annotation: 'Page 2, Section Collateral' },
+  { id: 2, user: 'Ahmad Fauzi', time: '24 May 11:15', text: 'Verified — appraisal from KJPP certified. Value confirmed at Rp 8.5M.', bg: 'bg-[#006699]' },
+  { id: 3, user: 'Sari Indrawati', time: '24 May 10:30', text: 'LGTM. Recommend approval.', bg: 'bg-purple-500' },
+])
+
+function addComment() {
+  if (!newComment.value.trim()) return
+  docComments.value.push({
+    id: Date.now(),
+    user: 'Current User',
+    time: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    text: newComment.value.trim(),
+    bg: 'bg-green-500',
+  })
+  newComment.value = ''
+  showToast('Comment added')
+}
+
+// ── Mobile Capture ──
+const capturedDocs = ref([])
+let captureIdSeq = 1
+
+function simulateCapture() {
+  const docNames = ['KTP_Front.jpg', 'NPWP_Card.jpg', 'Slip_Gaji_May.jpg', 'KK_Family_Card.pdf']
+  const name = docNames[captureIdSeq % docNames.length]
+  capturedDocs.value.unshift({
+    id: captureIdSeq++,
+    name,
+    size: (Math.random() * 2 + 0.3).toFixed(1) + ' MB',
+    ocr: 'Pending',
+  })
+  showToast(`Captured: ${name}`)
+}
+
+function addCapturedToLibrary(cd) {
+  cd.ocr = 'Processing'
+  allDocs.value.unshift({
+    id: Date.now() + Math.random(),
+    name: cd.name,
+    ext: cd.name.split('.').pop(),
+    customer: 'Budi Santoso',
+    doc_type: 'KYC',
+    ocr: 'Processing',
+    ai_class: null,
+    ai_conf: null,
+    ai_folder: null,
+    size: cd.size,
+    version: 1,
+    expiry: null,
+    status: 'Active',
+    uploaded: 'Just now',
+    tags: ['Mobile Capture'],
+    selected: false,
+  })
+  capturedDocs.value = capturedDocs.value.filter(d => d.id !== cd.id)
+  showToast(`"${cd.name}" added to library`)
+}
 
 const customerOptions = [
   "PT Maju Bersama",
