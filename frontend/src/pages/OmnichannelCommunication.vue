@@ -337,23 +337,26 @@
             </div>
           </div>
 
-          <!-- AI Suggestion Banner -->
-          <div
-            v-if="aiSuggestion"
-            class="mx-4 mb-1 flex items-start gap-3 rounded-lg border border-primary-100 bg-primary-50 px-3 py-2"
-          >
-            <div class="flex-1">
-              <div class="flex items-center gap-1 text-[11px] font-semibold text-primary-700">
-                <FeatherIcon name="zap" class="h-3 w-3" />
-                {{ __('AI Reply Suggestion') }}
+          <!-- AI Suggestions List -->
+          <div v-if="suggestions.length && !suggestionsLoading" class="mx-4 mb-2 grid gap-1.5">
+            <button
+              v-for="item in suggestions"
+              :key="item"
+              class="w-full rounded-lg border p-2.5 text-left text-xs transition-all duration-200 outline-none flex items-center justify-between cursor-pointer"
+              :class="item.startsWith('Draf Disetujui: ') ? 'border-teal-200 bg-teal-50 text-teal-900 font-medium hover:bg-teal-100 hover:border-teal-300' : 'border-crm-border bg-surface-gray-1 text-ink-gray-7 hover:bg-surface-gray-2'"
+              @click="applySuggestion(item)"
+            >
+              <div class="flex items-center gap-1.5 min-w-0">
+                <FeatherIcon :name="item.startsWith('Draf Disetujui: ') ? 'check-circle' : 'zap'" class="h-3.5 w-3.5 shrink-0" :class="item.startsWith('Draf Disetujui: ') ? 'text-teal-600' : 'text-primary-500'" />
+                <span class="truncate">
+                  <span v-if="item.startsWith('Draf Disetujui: ')" class="font-bold text-teal-700 mr-1">[{{ __('Draf AI Disetujui') }}]</span>
+                  {{ item.startsWith('Draf Disetujui: ') ? item.substring('Draf Disetujui: '.length) : item }}
+                </span>
               </div>
-              <div class="mt-0.5 text-xs text-ink-gray-7">{{ aiSuggestion }}</div>
-            </div>
-            <div class="flex shrink-0 gap-1">
-              <Button label="Use" variant="subtle" size="sm" @click="useAiSuggestion" />
-              <Button icon="x" variant="ghost" size="sm" @click="aiSuggestion = ''" />
-            </div>
+              <FeatherIcon name="chevron-right" class="h-3.5 w-3.5 text-ink-gray-4" />
+            </button>
           </div>
+          <div v-if="suggestionsLoading" class="mx-4 mb-2 text-center text-xs text-ink-gray-4 italic">{{ __('Generating suggestions...') }}</div>
 
           <!-- Composer -->
           <div class="border-t border-crm-border px-4 py-3">
@@ -981,6 +984,19 @@
           <div class="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent mb-4" />
           <p class="text-sm font-medium text-slate-700">{{ __('Generating dynamic connection pairing QR Code...') }}</p>
         </template>
+        <template v-else-if="whatsappAlreadyConnected">
+          <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-2xl animate-pulse">
+            ✓
+          </div>
+          <h3 class="text-base font-semibold text-slate-800 mb-2">{{ __('WhatsApp is Already Connected') }}</h3>
+          <p class="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+            {{ __('Your WhatsApp device is currently connected and active. To switch accounts or pair a new device, disconnect the active session first.') }}
+          </p>
+          <div class="flex gap-2">
+            <Button variant="solid" theme="red" :label="__('Disconnect Session')" @click="disconnectWhatsApp" />
+            <Button variant="outline" :label="__('Close')" @click="showWhatsAppConnectDialog = false" />
+          </div>
+        </template>
         <template v-else-if="qrCodeUrl">
           <div class="mb-4 rounded-2xl bg-slate-50 p-4 shadow-inner border border-slate-100 flex items-center justify-center">
             <img :src="qrCodeUrl" class="h-48 w-48 object-contain transition-all hover:scale-105 duration-300" alt="WhatsApp Connection QR Code" />
@@ -994,6 +1010,19 @@
             <Button variant="outline" :label="__('Cancel')" @click="showWhatsAppConnectDialog = false" />
           </div>
         </template>
+        <template v-else>
+          <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 text-rose-600 text-2xl">
+            ✕
+          </div>
+          <h3 class="text-base font-semibold text-slate-800 mb-2">{{ __('QR Code Not Available') }}</h3>
+          <p class="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+            {{ __('The WhatsApp adapter is initializing or cannot establish a connection. Click the button below to force a reset and regenerate the session.') }}
+          </p>
+          <div class="flex gap-2">
+            <Button variant="solid" theme="red" :label="__('Force Reset Session')" @click="disconnectWhatsApp" />
+            <Button variant="outline" :label="__('Cancel')" @click="showWhatsAppConnectDialog = false" />
+          </div>
+        </template>
       </div>
     </template>
   </Dialog>
@@ -1002,7 +1031,7 @@
 <script setup>
 import LayoutHeader from '@/components/LayoutHeader.vue'
 import { Badge, Button, FeatherIcon, usePageMeta, Dialog, call, toast } from 'frappe-ui'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 // ── Page navigation ──────────────────────────────────────────
 const pages = [
@@ -1027,6 +1056,14 @@ const isInternal = ref(false)
 const aiSuggestion = ref('')
 const autoResponderActive = ref(false)
 const isTyping = ref(false)
+
+const suggestions = ref([])
+const suggestionsLoading = ref(false)
+
+watch(selectedId, () => {
+  suggestions.value = []
+  aiSuggestion.value = ''
+})
 
 // ── Modal state ──────────────────────────────────────────────
 const showConversationForm = ref(false)
@@ -1358,22 +1395,30 @@ function applyTemplate() {
   selectedTemplate.value = ''
 }
 
-function generateAiSuggestion() {
-  const last = [...(activeConv.value.messages || [])].filter((m) => m.direction === 'in' && !m.internal).pop()
-  if (!last) return
-  const suggestions = {
-    WhatsApp: `Terima kasih atas informasinya. Kami akan segera menindaklanjuti dan menghubungi Bapak/Ibu dalam waktu 1 jam kerja. Apakah ada hal lain yang perlu kami bantu?`,
-    Email: `Dear Bapak/Ibu,\n\nTerima kasih atas email Anda. Kami telah menerima permintaan Anda dan akan segera memproses. Mohon tunggu konfirmasi dari kami dalam 1x24 jam kerja.\n\nSalam hormat,\nBNI CRM Team`,
-    SMS: `Terima kasih. Tim kami akan menghubungi Anda segera.`,
-    'In-App': `Terima kasih atas pertanyaannya! Saya akan segera jadwalkan pertemuan. Kapan waktu yang paling nyaman untuk Bapak/Ibu?`,
-    Voice: `Catatan panggilan telah dicatat. Tindak lanjut akan dilakukan sesuai hasil diskusi.`,
+async function generateAiSuggestion() {
+  if (suggestionsLoading.value) return
+  suggestionsLoading.value = true
+  suggestions.value = []
+  try {
+    const response = await call('crm.api.omnichannel.generate_reply_suggestions', {
+      conversation_id: activeConv.value.id || activeConv.value.name,
+      tone: messageTone.value || 'Formal',
+    })
+    suggestions.value = response?.suggestions || []
+  } catch (err) {
+    console.error('Failed to generate suggestions', err)
+  } finally {
+    suggestionsLoading.value = false
   }
-  aiSuggestion.value = suggestions[activeConv.value.channel] || suggestions.WhatsApp
 }
 
-function useAiSuggestion() {
-  composer.value = aiSuggestion.value
-  aiSuggestion.value = ''
+function applySuggestion(item) {
+  if (item.startsWith('Draf Disetujui: ')) {
+    composer.value = item.substring('Draf Disetujui: '.length)
+  } else {
+    composer.value = item
+  }
+  suggestions.value = []
 }
 
 function sendMessage() {
@@ -1519,20 +1564,57 @@ function saveTemplate() {
 const showWhatsAppConnectDialog = ref(false)
 const connecting = ref(false)
 const qrCodeUrl = ref('')
+const whatsappAlreadyConnected = ref(false)
 
 async function openWhatsAppConnect() {
   showWhatsAppConnectDialog.value = true
   connecting.value = true
   qrCodeUrl.value = ''
-  try {
-    const uniqueSession = `fcrm_wa_session_${Math.random().toString(36).substring(2, 15)}`
-    qrCodeUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=059669&data=${encodeURIComponent(uniqueSession)}`
-  } catch (err) {
-    console.error(err)
-    toast.error(__('Failed to generate WhatsApp QR code'))
-  } finally {
-    connecting.value = false
+  whatsappAlreadyConnected.value = false
+  
+  let retries = 0
+  const maxRetries = 10
+  
+  async function fetchQr() {
+    // Stop if user closed the modal
+    if (!showWhatsAppConnectDialog.value) {
+      connecting.value = false
+      return
+    }
+    
+    try {
+      const response = await call('crm.api.whatsapp.get_whatsapp_connection_qr')
+      if (response?.ready) {
+        whatsappAlreadyConnected.value = true
+        connecting.value = false
+        return
+      }
+      if (response?.qr_code_url) {
+        qrCodeUrl.value = response.qr_code_url
+        connecting.value = false
+        return
+      }
+      
+      // If QR not ready yet, retry
+      if (retries < maxRetries) {
+        retries++
+        setTimeout(fetchQr, 2000)
+      } else {
+        throw new Error(response?.message || __('WhatsApp QR is not available yet. Please try again.'))
+      }
+    } catch (err) {
+      console.error(err)
+      if (retries < maxRetries) {
+        retries++
+        setTimeout(fetchQr, 2000)
+      } else {
+        toast.error(err?.messages?.[0] || err.message || __('Failed to load WhatsApp QR code'))
+        connecting.value = false
+      }
+    }
   }
+  
+  await fetchQr()
 }
 
 async function confirmConnection() {
@@ -1541,9 +1623,24 @@ async function confirmConnection() {
     await call('crm.api.whatsapp.connect_whatsapp_channel')
     toast.success(__('WhatsApp Channel connected and activated successfully!'))
     showWhatsAppConnectDialog.value = false
+    whatsappAlreadyConnected.value = false
   } catch (err) {
     toast.error(err?.messages?.[0] || err.message || __('Connection failed'))
   } finally {
+    connecting.value = false
+  }
+}
+
+async function disconnectWhatsApp() {
+  connecting.value = true
+  whatsappAlreadyConnected.value = false
+  qrCodeUrl.value = ''
+  try {
+    await call('crm.api.whatsapp.disconnect_whatsapp')
+    toast.success(__('WhatsApp session disconnected and reset successfully.'))
+    await openWhatsAppConnect()
+  } catch (err) {
+    toast.error(err?.messages?.[0] || err.message || __('Failed to disconnect WhatsApp'))
     connecting.value = false
   }
 }

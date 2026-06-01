@@ -905,6 +905,52 @@ def save_template(payload):
 def generate_reply_suggestions(conversation_id: str, tone: str = "Formal"):
 	detail = get_conversation(conversation_id)
 	provider = {"status": "Provider Not Configured"}
+	customer_id = detail.get("conversation", {}).get("customer")
+
+	approved_drafts = []
+	if customer_id:
+		# 1. Query CRM AI Action Log
+		try:
+			action_logs = frappe.db.get_all(
+				"CRM AI Action Log",
+				filters={
+					"action_type": "draft_communication",
+					"status": ["in", ["Confirmed", "Completed"]]
+				},
+				fields=["payload_json"]
+			)
+			for log in action_logs:
+				try:
+					payload = json.loads(log.payload_json or "{}")
+					if payload.get("customer") == customer_id and payload.get("message"):
+						msg = payload["message"].strip()
+						if msg and msg not in approved_drafts:
+							approved_drafts.append(msg)
+				except Exception:
+					pass
+		except Exception:
+			pass
+
+		# 2. Query CRM Customer Communication
+		try:
+			comms = frappe.db.get_all(
+				"CRM Customer Communication",
+				filters={
+					"customer": customer_id,
+					"compose_status": "Manual",
+					"status": "Open"
+				},
+				fields=["message"]
+			)
+			for comm in comms:
+				if comm.message:
+					msg = comm.message.strip()
+					if msg and msg not in approved_drafts:
+						approved_drafts.append(msg)
+		except Exception:
+			pass
+
+	formatted_drafts = [f"Draf Disetujui: {d}" for d in approved_drafts]
 
 	def _template_suggestions():
 		last_msg = (detail.get("messages") or [None])[-1]
@@ -952,13 +998,13 @@ def generate_reply_suggestions(conversation_id: str, tone: str = "Formal"):
 		]
 		is_blocked = any(indicator in text.lower() for indicator in guardrail_indicators)
 		if is_blocked:
-			return {"status": "Fallback", "tone": tone, "suggestions": _template_suggestions(), "provider_status": provider}
+			return {"status": "Fallback", "tone": tone, "suggestions": formatted_drafts + _template_suggestions(), "provider_status": provider}
 
 		options = [line.strip(" -0123456789.") for line in text.splitlines() if line.strip()]
 		options = [item for item in options if item][:3]
-		return {"status": "Generated", "tone": tone, "suggestions": options or [text], "provider_status": {"status": "Active"}}
+		return {"status": "Generated", "tone": tone, "suggestions": formatted_drafts + (options or [text]), "provider_status": {"status": "Active"}}
 	except Exception:
-		return {"status": "Fallback", "tone": tone, "suggestions": _template_suggestions(), "provider_status": provider}
+		return {"status": "Fallback", "tone": tone, "suggestions": formatted_drafts + _template_suggestions(), "provider_status": provider}
 
 
 @frappe.whitelist()

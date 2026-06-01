@@ -64,8 +64,15 @@ const client = new Client({
   puppeteer: {
     headless: process.env.PUPPETEER_HEADLESS !== 'false',
     executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-web-security'
+    ],
   },
+  userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 })
 
 client.on('qr', async (qr) => {
@@ -381,8 +388,84 @@ app.get('/status', requireToken, async (_req, res) => {
 })
 
 app.get('/qr', requireToken, (_req, res) => {
-  if (!lastQrDataUrl) return res.status(404).send('QR is not available. Check /status or restart the service.')
+  const wantsJson = _req.query.format === 'json' || String(_req.headers.accept || '').includes('application/json')
+  if (!lastQrDataUrl) {
+    const payload = { ready, has_qr: false, error: 'QR is not available. Check /status or restart the service.' }
+    return wantsJson ? res.status(404).json(payload) : res.status(404).send(payload.error)
+  }
+  if (wantsJson) {
+    return res.json({ ready, has_qr: true, qr_code_url: lastQrDataUrl, qr: lastQr })
+  }
   res.type('html').send(`<html><body><img src="${lastQrDataUrl}" alt="WhatsApp QR" /></body></html>`)
+})
+
+app.post('/logout', requireToken, async (_req, res) => {
+  try {
+    if (client) {
+      console.log('Disconnect requested. Attempting client.logout()...')
+      try {
+        await client.logout()
+      } catch (e) {
+        console.warn('client.logout failed or was not connected:', e.message)
+      }
+      
+      ready = false
+      lastQr = ''
+      lastQrDataUrl = ''
+      
+      try {
+        console.log('Destroying active puppeteer browser instance...')
+        await client.destroy()
+      } catch (e) {
+        console.warn('client.destroy failed:', e.message)
+      }
+      
+      // Wipe session cache directories to prevent Chromium from automatically resuming
+      const cleanDir = (d) => {
+        if (fs.existsSync(d)) {
+          const entries = fs.readdirSync(d, { withFileTypes: true })
+          for (const entry of entries) {
+            const full = path.join(d, entry.name)
+            if (entry.isDirectory()) {
+              cleanDir(full)
+            } else {
+              try {
+                fs.unlinkSync(full)
+              } catch (e) {}
+            }
+          }
+          try {
+            fs.rmdirSync(d)
+          } catch (e) {}
+        }
+      }
+      
+      // Clean any directory starting with 'session-' in sessionDir
+      if (fs.existsSync(sessionDir)) {
+        const entries = fs.readdirSync(sessionDir, { withFileTypes: true })
+        for (const entry of entries) {
+          if (entry.isDirectory() && entry.name.startsWith('session-')) {
+            const full = path.join(sessionDir, entry.name)
+            cleanDir(full)
+            console.log('Cleared session directory successfully:', full)
+          }
+        }
+      }
+      
+      // Also clean old 'session' folder just in case
+      const legacyPath = path.join(sessionDir, 'session')
+      cleanDir(legacyPath)
+      
+      // Re-initialize to spin up a brand new browser and trigger new QR generation
+      console.log('Re-initializing client with clean slate...')
+      client.initialize()
+      
+      return res.json({ ok: true, message: 'Logged out and session cleared successfully' })
+    }
+    res.status(400).json({ error: 'Client not initialized' })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 app.post('/send', requireToken, async (req, res) => {
@@ -446,20 +529,15 @@ client.on('authenticated', () => {
 client.initialize()
 
 // Workaround for whatsapp-web.js 1.34.x race condition:
-// change:hasSynced can fire before the listener is registered inside inject(),
-// or the onAppStateHasSyncedEvent callback may throw after setting client.info
-// but before emitting 'ready'. Detect these and force-ready the client.
+// Keep running in background to force ready state if client is CONNECTED but ready is false
 ;(async function ensureReady() {
-  for (let i = 0; i < 60; i++) {
-    await new Promise(r => setTimeout(r, 1000))
-    if (ready) return
-    if (!client.pupPage) {
-      if (i < 5) console.log(`ensureReady[${i}]: pupPage null, waiting...`)
-      continue
-    }
+  while (true) {
+    await new Promise(r => setTimeout(r, 2000))
+    if (ready) continue // Already ready, nothing to do
+    if (!client || !client.pupPage) continue
+    
     try {
       const state = await client.getState()
-      if (i < 5) console.log(`ensureReady[${i}]: state=${state} info=${!!client.info}`)
       if (state !== 'CONNECTED') continue
 
       // If the callback ran (info set) but ready is still false, force it
@@ -468,25 +546,41 @@ client.initialize()
         lastQr = ''
         lastQrDataUrl = ''
         console.log('WhatsAppWebJS client is ready (forced after callback set info).')
-        return
+        continue
       }
 
       // Otherwise try to trigger the callback manually
       const ret = await client.pupPage.evaluate(() => {
-        const Socket = window.require('WAWebSocketModel').Socket
-        const hasFn = typeof window.onAppStateHasSyncedEvent === 'function'
-        return { sockState: Socket.state, hasFn }
+        try {
+          const Socket = window.require('WAWebSocketModel').Socket
+          const hasFn = typeof window.onAppStateHasSyncedEvent === 'function'
+          return { sockState: Socket.state, hasFn }
+        } catch (e) {
+          return null
+        }
       })
       if (ret && ret.hasFn) {
         await client.pupPage.evaluate(() => {
           window.onAppStateHasSyncedEvent()
         })
         console.log('Manually triggered onAppStateHasSyncedEvent (race condition workaround)')
-        return
+      } else {
+        // If it is CONNECTED, but there is no synced event available, we can also force it after 5 seconds to be safe
+        ready = true
+        lastQr = ''
+        lastQrDataUrl = ''
+        console.log('Forcing client to ready because state is CONNECTED.')
       }
-    } catch {}
+    } catch (e) {
+      // If we are connected according to puppeteer, but getState failed, we can check client.info
+      if (client.info) {
+        ready = true
+        lastQr = ''
+        lastQrDataUrl = ''
+        console.log('Forced ready from client.info fallback.')
+      }
+    }
   }
-  console.log('ensureReady: giving up after 60s (QR re-scan may be needed)')
 })()
 
 app.listen(port, '0.0.0.0', () => {
