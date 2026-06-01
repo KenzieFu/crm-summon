@@ -391,6 +391,140 @@
           </div>
         </div>
 
+        <!-- CREDIT & APPROVAL REPORTS -->
+        <div v-else-if="activeNav==='credit'" class="flex-1 overflow-y-auto p-5 space-y-5">
+          <!-- Approval KPI Cards -->
+          <div class="grid grid-cols-4 gap-4">
+            <div v-for="kpi in creditKpis" :key="kpi.label" class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <div class="flex items-start justify-between mb-2">
+                <div class="w-9 h-9 rounded-xl flex items-center justify-center" :class="kpi.iconBg">
+                  <FeatherIcon :name="kpi.icon" class="h-4 w-4" :class="kpi.iconColor" />
+                </div>
+                <span class="text-[10px] rounded-full px-2 py-0.5 font-bold" :class="kpi.badgeClass">{{ kpi.badge }}</span>
+              </div>
+              <p class="text-xl font-black text-gray-900">{{ kpi.value }}</p>
+              <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-0.5">{{ kpi.label }}</p>
+            </div>
+          </div>
+
+          <!-- Approval Pipeline + SLA -->
+          <div class="grid grid-cols-3 gap-4">
+            <!-- Approval Pipeline -->
+            <div class="col-span-2 bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="text-sm font-bold text-gray-800">{{ __('Approval Pipeline by Stage') }}</h3>
+                  <p class="text-[10px] text-gray-400">{{ __('Applications currently at each approval level') }}</p>
+                </div>
+              </div>
+              <div class="space-y-3">
+                <div v-for="stage in approvalStages" :key="stage.id" class="flex items-center gap-3">
+                  <div class="w-28 shrink-0">
+                    <p class="text-[11px] font-semibold text-gray-700">{{ stage.name }}</p>
+                    <p class="text-[9px] text-gray-400">{{ stage.role }}</p>
+                  </div>
+                  <div class="flex-1 h-7 bg-gray-100 rounded-lg overflow-hidden relative">
+                    <div class="h-full flex rounded-lg overflow-hidden">
+                      <div class="h-full bg-green-500 transition-all" :style="{ width: ((stage.approved / stage.total) * 100) + '%' }" />
+                      <div class="h-full bg-amber-400 transition-all" :style="{ width: ((stage.pending / stage.total) * 100) + '%' }" />
+                      <div class="h-full bg-red-400 transition-all" :style="{ width: ((stage.rejected / stage.total) * 100) + '%' }" />
+                    </div>
+                  </div>
+                  <div class="w-14 text-right shrink-0">
+                    <p class="text-sm font-black text-gray-800">{{ stage.total }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
+                <div v-for="leg in pipelineLegend" :key="leg.label" class="flex items-center gap-1.5">
+                  <div class="w-3 h-3 rounded" :class="leg.color" />
+                  <span class="text-[10px] text-gray-500">{{ leg.label }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- SLA Performance -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+              <h3 class="text-sm font-bold text-gray-800 mb-0.5">{{ __('SLA Performance') }}</h3>
+              <p class="text-[10px] text-gray-400 mb-3">{{ __('Avg processing time per stage (hours)') }}</p>
+              <div class="space-y-3">
+                <div v-for="sla in slaPerformance" :key="sla.stage" class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10px] font-semibold text-gray-600">{{ sla.stage }}</span>
+                    <span class="text-[10px] font-bold" :class="sla.actual <= sla.target ? 'text-green-600' : 'text-red-500'">{{ sla.actual }}h</span>
+                  </div>
+                  <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden relative">
+                    <div class="absolute top-0 h-full w-0.5 bg-red-400 rounded-full z-10" :style="{ left: (sla.target / sla.max) * 100 + '%' }" />
+                    <div class="h-full rounded-full" :class="sla.actual <= sla.target ? 'bg-green-500' : 'bg-red-400'" :style="{ width: (sla.actual / sla.max) * 100 + '%' }" />
+                  </div>
+                  <p class="text-[9px] text-gray-400 text-right">Target: {{ sla.target }}h</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approval Reports Table -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h3 class="text-sm font-bold text-gray-800">{{ __('Approval Reports') }}</h3>
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                  <button v-for="f in ['All','Monthly','Weekly','Quarterly']" :key="f" @click="creditFilter = f"
+                    class="px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all"
+                    :class="creditFilter===f ? 'bg-white text-[#CC5200] shadow-sm' : 'text-gray-500'">
+                    {{ f }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-gray-100 bg-gray-50">
+                  <th class="px-5 py-3 text-left font-semibold text-gray-500">{{ __('Report Name') }}</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-500">{{ __('Period') }}</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-500">{{ __('Approval Rate') }}</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-500">{{ __('Avg SLA') }}</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-500">{{ __('Rejection Rate') }}</th>
+                  <th class="px-4 py-3 text-left font-semibold text-gray-500">{{ __('Generated') }}</th>
+                  <th class="px-4 py-3 text-right font-semibold text-gray-500">{{ __('Actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in filteredCreditReports" :key="r.id" class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                  <td class="px-5 py-3">
+                    <div class="flex items-center gap-2.5">
+                      <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" :class="r.colorBg">
+                        <FeatherIcon :name="r.icon" class="h-3.5 w-3.5" :class="r.colorText" />
+                      </div>
+                      <div>
+                        <p class="font-semibold text-gray-800">{{ r.name }}</p>
+                        <p class="text-[10px] text-gray-400">{{ r.desc }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500">{{ r.period }}</td>
+                  <td class="px-4 py-3">
+                    <span class="font-bold" :class="r.approvalRate >= 85 ? 'text-green-600' : r.approvalRate >= 70 ? 'text-amber-600' : 'text-red-500'">{{ r.approvalRate }}%</span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="font-semibold" :class="r.avgSLA <= 24 ? 'text-green-600' : r.avgSLA <= 48 ? 'text-amber-600' : 'text-red-500'">{{ r.avgSLA }}h</span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="font-bold" :class="r.rejectionRate <= 10 ? 'text-green-600' : r.rejectionRate <= 20 ? 'text-amber-600' : 'text-red-500'">{{ r.rejectionRate }}%</span>
+                  </td>
+                  <td class="px-4 py-3 text-gray-500">{{ r.generated }}</td>
+                  <td class="px-4 py-3">
+                    <div class="flex items-center justify-end gap-1.5">
+                      <button @click="downloadReport(r)" class="p-1.5 rounded-lg hover:bg-[#FFF8F2] text-gray-400 hover:text-[#FF6600] transition-colors"><FeatherIcon name="download" class="h-3.5 w-3.5" /></button>
+                      <button @click="openShareModal(r)" class="p-1.5 rounded-lg hover:bg-[#F0F8FC] text-gray-400 hover:text-[#006699] transition-colors"><FeatherIcon name="share-2" class="h-3.5 w-3.5" /></button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- PIVOT TABLE -->
         <div v-else-if="activeNav==='pivot'" class="flex-1 overflow-y-auto p-5">
           <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -794,6 +928,7 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: 'bar-chart-2' },
   { id: 'hub', label: 'Report Hub', icon: 'folder', badge: '24' },
   { id: 'kpi', label: 'KPI Monitoring', icon: 'target' },
+  { id: 'credit', label: 'Credit & Approval', icon: 'check-circle' },
   { id: 'pivot', label: 'Pivot Table', icon: 'grid' },
   { id: 'scheduled', label: 'Scheduled Reports', icon: 'clock' },
   { id: 'regulatory', label: 'Regulatory Reports', icon: 'shield', badge: '3' },
@@ -957,7 +1092,51 @@ function sparkline(data) {
   }).join(' ')
 }
 
-// ── Scheduled Reports ──
+// ── Credit & Approval Reports ──
+const creditFilter = ref('All')
+
+const creditKpis = [
+  { label: 'Approval Rate', value: '87.2%', icon: 'check-circle', iconBg: 'bg-green-100', iconColor: 'text-green-600', badge: '+2.1%', badgeClass: 'bg-green-100 text-green-700' },
+  { label: 'Avg Approval SLA', value: '18.4h', icon: 'clock', iconBg: 'bg-[#FFF0E6]', iconColor: 'text-[#FF6600]', badge: 'On Track', badgeClass: 'bg-[#FFF0E6] text-[#CC5200]' },
+  { label: 'Pending Approvals', value: '12', icon: 'clock', iconBg: 'bg-amber-100', iconColor: 'text-amber-600', badge: '3 Overdue', badgeClass: 'bg-amber-100 text-amber-700' },
+  { label: 'Rejection Rate', value: '8.4%', icon: 'x-circle', iconBg: 'bg-red-100', iconColor: 'text-red-600', badge: '-0.8%', badgeClass: 'bg-red-100 text-red-700' },
+]
+
+const approvalStages = [
+  { id: 1, name: 'RM Review', role: 'Relationship Manager', approved: 24, pending: 5, rejected: 2, total: 31 },
+  { id: 2, name: 'Credit Head', role: 'Credit Analysis Head', approved: 18, pending: 3, rejected: 1, total: 22 },
+  { id: 3, name: 'Risk Officer', role: 'Risk Management', approved: 14, pending: 2, rejected: 1, total: 17 },
+  { id: 4, name: 'Dir. Director', role: 'Division Director', approved: 10, pending: 2, rejected: 0, total: 12 },
+  { id: 5, name: 'Committee', role: 'Credit Committee', approved: 5, pending: 0, rejected: 0, total: 5 },
+]
+
+const pipelineLegend = [
+  { label: 'Approved', color: 'bg-green-500' },
+  { label: 'Pending', color: 'bg-amber-400' },
+  { label: 'Rejected', color: 'bg-red-400' },
+]
+
+const slaPerformance = [
+  { stage: 'RM Review', actual: 8, target: 24, max: 48 },
+  { stage: 'Credit Head', actual: 14, target: 48, max: 72 },
+  { stage: 'Risk Officer', actual: 22, target: 24, max: 48 },
+  { stage: 'Dir. Director', actual: 18, target: 48, max: 72 },
+  { stage: 'Committee', actual: 32, target: 72, max: 96 },
+]
+
+const creditReports = ref([
+  { id: 1, name: 'Monthly Approval Dashboard', desc: 'Approval rate, SLA, and pipeline summary', period: 'May 2026', frequency: 'Monthly', approvalRate: 87.2, avgSLA: 18.4, rejectionRate: 8.4, generated: '24 May 2026', icon: 'bar-chart-2', colorBg: 'bg-[#FFF0E6]', colorText: 'text-[#FF6600]', visibility: 'Team' },
+  { id: 2, name: 'SLA Breach Analysis', desc: 'SLA violations, escalation triggers, and root cause', period: 'May 2026', frequency: 'Weekly', approvalRate: 72, avgSLA: 52, rejectionRate: 12, generated: '23 May 2026', icon: 'alert-triangle', colorBg: 'bg-red-100', colorText: 'text-red-600', visibility: 'Private' },
+  { id: 3, name: 'Approver Productivity Report', desc: 'Per-approver turnaround time and workload', period: 'May 2026', frequency: 'Weekly', approvalRate: 88, avgSLA: 14, rejectionRate: 6, generated: '22 May 2026', icon: 'users', colorBg: 'bg-sky-100', colorText: 'text-sky-600', visibility: 'Team' },
+  { id: 4, name: 'Credit Committee Summary', desc: 'Committee decisions, quorum, and voting results', period: 'Q1 2026', frequency: 'Quarterly', approvalRate: 82, avgSLA: 32, rejectionRate: 10, generated: '05 Apr 2026', icon: 'briefcase', colorBg: 'bg-purple-100', colorText: 'text-purple-600', visibility: 'Private' },
+  { id: 5, name: 'Delegation & Escalation Log', desc: 'Delegate actions, auto-escalations, and resolution', period: 'May 2026', frequency: 'Monthly', approvalRate: 78, avgSLA: 42, rejectionRate: 15, generated: '24 May 2026', icon: 'git-merge', colorBg: 'bg-amber-100', colorText: 'text-amber-600', visibility: 'Team' },
+  { id: 6, name: 'Rejection Root Cause Report', desc: 'Patterns, policy gaps, and improvement actions', period: 'Q1 2026', frequency: 'Quarterly', approvalRate: 65, avgSLA: 28, rejectionRate: 22, generated: '01 Apr 2026', icon: 'x-circle', colorBg: 'bg-rose-100', colorText: 'text-rose-600', visibility: 'Public' },
+])
+
+const filteredCreditReports = computed(() => {
+  if (creditFilter.value === 'All') return creditReports.value
+  return creditReports.value.filter(r => r.frequency === creditFilter.value)
+})
 const schedules = ref([
   { id: 1, report: 'OJK LPBB Monthly Report', frequency: 'Monthly', nextRun: '01 Jun 2026 06:00', lastRun: '24 May 09:00', recipients: ['Direktur', 'Risk', 'Finance'], formats: ['PDF', 'XML'], status: 'Active' },
   { id: 2, report: 'Daily Disbursement Summary', frequency: 'Daily', nextRun: '25 May 18:00', lastRun: '24 May 18:00', recipients: ['Ops Head', 'Branch'], formats: ['Excel'], status: 'Active' },
