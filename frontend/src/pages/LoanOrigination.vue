@@ -129,7 +129,12 @@
 
           <!-- ── STEP 1: APPLICATION INTAKE ── -->
           <div v-if="currentStep===1" class="max-w-3xl mx-auto space-y-5">
-            <StepHeader icon="edit-3" title="Application Intake" sub="Product selection, borrower profile, KYC & OCR" badge="Connects to Backend" />
+            <div class="flex items-center justify-between">
+              <StepHeader icon="edit-3" title="Application Intake" sub="Product selection, borrower profile, KYC & OCR" badge="Connects to Backend" />
+              <button @click="showFormBuilder = true" class="flex items-center gap-1.5 text-[10px] border border-purple-300 text-purple-600 rounded-lg px-2.5 py-1 hover:bg-purple-50 transition-colors font-semibold shrink-0">
+                <FeatherIcon name="layout" class="h-3 w-3" />{{ __('Form Builder') }}
+              </button>
+            </div>
 
             <!-- Product Selection -->
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
@@ -302,6 +307,29 @@
                   {{ docsMissing > 0 ? `${docsMissing} mandatory document(s) missing — submission blocked` : 'All required documents received — ready to proceed' }}
                 </span>
                 <span class="ml-auto text-xs font-bold text-[#FF6600]">{{ Math.round(docsReceived / documents.length * 100) }}% complete</span>
+              </div>
+            </div>
+
+            <!-- AI Document Classification & Validation -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <FeatherIcon name="cpu" class="h-4 w-4 text-purple-600" />
+                </div>
+                <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wide">{{ __('AI Document Classification & Validation') }}</h4>
+                <span class="ml-auto text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-semibold">AI Powered</span>
+              </div>
+              <div class="grid grid-cols-2 gap-3 mb-4">
+                <div v-for="doc in aiClassifiedDocs" :key="doc.name" class="rounded-lg border p-3" :class="doc.valid ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'">
+                  <div class="flex items-start gap-2 mb-1">
+                    <FeatherIcon :name="doc.valid ? 'check-circle' : 'alert-triangle'" class="h-4 w-4 shrink-0 mt-0.5" :class="doc.valid ? 'text-green-500' : 'text-red-400'" />
+                    <div>
+                      <p class="text-xs font-semibold text-gray-800">{{ doc.name }}</p>
+                      <p class="text-[10px] text-gray-500 mt-0.5">{{ doc.docType }} · Confidence: {{ doc.confidence }}%</p>
+                    </div>
+                  </div>
+                  <div v-if="!doc.valid" class="mt-1.5 text-[10px] text-red-600 font-medium bg-white rounded px-2 py-1">{{ doc.issue }}</div>
+                </div>
               </div>
             </div>
 
@@ -508,7 +536,44 @@
                       <div class="flex items-center gap-2">
                         <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
                           <div class="h-full bg-amber-400 rounded-full" style="width: 60%" />
-                        </div>
+            <!-- Restructuring & Top-up -->
+            <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div class="flex items-center gap-2 mb-4">
+                <div class="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <FeatherIcon name="refresh-cw" class="h-4 w-4 text-purple-600" />
+                </div>
+                <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wide">{{ __('Restructuring & Top-Up') }}</h4>
+                <span class="ml-auto text-[10px] text-gray-400">{{ restructures.length }} records</span>
+              </div>
+              <div class="space-y-3">
+                <div v-for="r in restructures" :key="r.id" class="rounded-lg border p-3" :class="r.type==='Top-Up' ? 'border-green-200 bg-green-50' : r.type==='Restructure' ? 'border-amber-200 bg-amber-50' : 'border-[#E6F4FA] bg-[#F0F8FC]'">
+                  <div class="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-gray-800">{{ r.type }}</span>
+                        <span class="rounded-full px-2 py-0.5 text-[9px] font-bold" :class="r.status==='Approved' ? 'bg-green-100 text-green-700' : r.status==='Pending' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'">{{ r.status }}</span>
+                      </div>
+                      <p class="text-[10px] text-gray-500 mt-0.5">{{ r.description }}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                      <p class="text-xs font-bold text-gray-800">{{ fmt(r.amount) }}</p>
+                      <p class="text-[10px] text-gray-400">{{ r.date }}</p>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 text-[10px] text-gray-500">
+                    <span class="font-semibold text-gray-600">{{ __('Approval:') }}</span>
+                    <span v-for="(step, i) in r.approvers" :key="step.name" class="inline-flex items-center gap-0.5">
+                      <span v-if="i>0" class="text-gray-300">→</span>
+                      <span :class="step.done ? 'text-green-600' : 'text-gray-400'">{{ step.name }}{{ step.done ? ' ✓' : '' }}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button @click="showToast('Restructuring request submitted')" class="mt-3 flex items-center gap-1.5 rounded-lg border border-[#006699] text-[#006699] px-3 py-1.5 text-xs font-semibold hover:bg-[#E6F4FA] transition-colors">
+                <FeatherIcon name="plus" class="h-3 w-3" />{{ __('New Restructuring / Top-Up Request') }}
+              </button>
+            </div>
+          </div>
                         <span class="text-[10px] text-amber-600 font-semibold">SLA: 14h remaining</span>
                       </div>
                       <div class="flex items-center gap-2">
@@ -878,6 +943,45 @@
       <div class="flex gap-2 mt-5">
         <button @click="showDelegateModal = false" class="flex-1 rounded-lg border border-[#006699] py-2 text-sm font-semibold text-[#006699] hover:bg-[#E6F4FA]">Cancel</button>
         <button @click="submitDelegate" :disabled="!delegatee" class="flex-1 rounded-lg bg-[#FF6600] py-2 text-sm font-semibold text-white hover:bg-[#CC5200] disabled:opacity-40 transition-colors">Delegate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dynamic Form Builder Modal -->
+  <div v-if="showFormBuilder" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" @click.self="showFormBuilder = false">
+    <div class="w-full max-w-lg bg-white rounded-2xl shadow-2xl p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+          <FeatherIcon name="layout" class="h-5 w-5 text-purple-600" />
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-gray-800">{{ __('Dynamic Form Builder') }}</h3>
+          <p class="text-xs text-gray-400 mt-0.5">{{ __('Customize application intake form fields') }}</p>
+        </div>
+      </div>
+      <div class="space-y-3 max-h-80 overflow-y-auto">
+        <div v-for="(field, i) in formBuilderFields" :key="field.key" class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50">
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <label class="flex items-center gap-2 cursor-pointer shrink-0">
+              <input type="checkbox" v-model="field.enabled" class="rounded text-[#FF6600]" />
+            </label>
+            <FeatherIcon :name="field.icon" class="h-4 w-4 text-gray-400 shrink-0" />
+            <div class="min-w-0">
+              <p class="text-xs font-semibold text-gray-800">{{ field.label }}</p>
+              <p class="text-[10px] text-gray-400">{{ field.key }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0">
+            <span class="rounded px-2 py-0.5 text-[9px] font-semibold" :class="field.required ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'">{{ field.required ? 'Required' : 'Optional' }}</span>
+            <button @click="moveFieldUp(i)" :disabled="i===0" class="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-20"><FeatherIcon name="chevron-up" class="h-3 w-3" /></button>
+            <button @click="moveFieldDown(i)" :disabled="i===formBuilderFields.length-1" class="p-1 text-gray-300 hover:text-gray-600 disabled:opacity-20"><FeatherIcon name="chevron-down" class="h-3 w-3" /></button>
+          </div>
+        </div>
+      </div>
+      <div class="text-xs text-gray-400 mt-3">{{ formBuilderFields.filter(f => f.enabled).length }} of {{ formBuilderFields.length }} fields active</div>
+      <div class="flex gap-2 mt-5">
+        <button @click="showFormBuilder = false" class="flex-1 rounded-lg border border-[#006699] py-2 text-sm font-semibold text-[#006699] hover:bg-[#E6F4FA]">{{ __('Cancel') }}</button>
+        <button @click="applyFormBuilder" class="flex-1 rounded-lg bg-[#FF6600] py-2 text-sm font-semibold text-white hover:bg-[#CC5200] transition-colors">{{ __('Apply Changes') }}</button>
       </div>
     </div>
   </div>
@@ -1261,6 +1365,53 @@ function deleteApp() {
   }
   deleteTarget.value = null
 }
+
+// ── Dynamic Form Builder ──
+const showFormBuilder = ref(false)
+const formBuilderFields = ref([
+  { key: 'borrower_name', label: 'Full Name / Company', icon: 'user', required: true, enabled: true },
+  { key: 'borrower_type', label: 'Borrower Type', icon: 'users', required: true, enabled: true },
+  { key: 'npwp', label: 'NPWP', icon: 'credit-card', required: false, enabled: true },
+  { key: 'phone', label: 'Phone', icon: 'phone', required: false, enabled: true },
+  { key: 'email', label: 'Email', icon: 'mail', required: false, enabled: true },
+  { key: 'employer_name', label: 'Employer / Holding', icon: 'briefcase', required: false, enabled: true },
+  { key: 'industry', label: 'Industry (KBLI)', icon: 'bar-chart-2', required: false, enabled: true },
+  { key: 'requested_amount', label: 'Requested Amount', icon: 'dollar-sign', required: false, enabled: false },
+  { key: 'tenor_months', label: 'Tenor (Months)', icon: 'calendar', required: false, enabled: false },
+  { key: 'purpose', label: 'Loan Purpose', icon: 'file-text', required: false, enabled: false },
+])
+
+function moveFieldUp(i) {
+  if (i <= 0) return
+  const arr = formBuilderFields.value
+  ;[arr[i-1], arr[i]] = [arr[i], arr[i-1]]
+}
+
+function moveFieldDown(i) {
+  const arr = formBuilderFields.value
+  if (i >= arr.length - 1) return
+  ;[arr[i], arr[i+1]] = [arr[i+1], arr[i]]
+}
+
+function applyFormBuilder() {
+  showFormBuilder.value = false
+  showToast('Form layout updated')
+}
+
+// ── AI Document Classification ──
+const aiClassifiedDocs = [
+  { name: 'KTP_Budi_Santoso.pdf', docType: 'Identity Document', confidence: 97, valid: true },
+  { name: 'Laporan_Keuangan_2024_Audit.xlsx', docType: 'Financial Statement', confidence: 92, valid: true },
+  { name: 'NPWP_scan.jpg', docType: 'Tax Document', confidence: 88, valid: true },
+  { name: 'Rekening_Koran.jpg', docType: 'Bank Statement', confidence: 74, valid: false, issue: 'Low resolution — re-scan recommended. Unreadable account number.' },
+]
+
+// ── Restructuring & Top-up ──
+const restructures = [
+  { id: 1, type: 'Top-Up', description: 'Additional working capital facility — Rp 2B expansion', amount: 2000000000, date: '15 May 2026', status: 'Approved', approvers: [{ name: 'RM', done: true }, { name: 'Credit Head', done: true }, { name: 'Risk Officer', done: true }] },
+  { id: 2, type: 'Restructure', description: 'Extend tenor from 36 to 48 months due to cashflow constraints', amount: 11200000000, date: '01 Jun 2026', status: 'Pending', approvers: [{ name: 'RM', done: true }, { name: 'Credit Head', done: false }, { name: 'Risk Officer', done: false }] },
+  { id: 3, type: 'Reschedule', description: 'Grace period 3 months — interest-only payments', amount: 11200000000, date: '28 Feb 2026', status: 'Approved', approvers: [{ name: 'RM', done: true }, { name: 'Credit Head', done: true }] },
+]
 
 // Auto-save every 30s when step <= 3
 let autoSaveTimer = null
