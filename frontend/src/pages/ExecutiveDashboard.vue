@@ -425,7 +425,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { usePageMeta, Dialog, FeatherIcon } from 'frappe-ui'
+import { usePageMeta, Dialog, FeatherIcon, call } from 'frappe-ui'
 import { Chart, registerables } from 'chart.js'
 import LayoutHeader from '@/components/LayoutHeader.vue'
 import ViewBreadcrumbs from '@/components/ViewBreadcrumbs.vue'
@@ -604,6 +604,7 @@ const aiMessages = ref([
   { from: 'bot', text: 'Halo! Saya SUMMON AI. Ada yang bisa saya bantu mengenai portofolio atau analisis kredit hari ini?' }
 ])
 const aiBodyRef = ref(null)
+const aiSessionId = ref(null)
 
 const cmdOpen = ref(false)
 const cmdQuery = ref('')
@@ -853,17 +854,28 @@ function runCmd(item) {
 // ══════════════════════════════════════════════════════
 // AI CHAT
 // ══════════════════════════════════════════════════════
-function sendAI() {
+async function sendAI() {
   const msg = aiInput.value.trim()
-  if (!msg) return
+  if (!msg || aiLoading.value) return
   aiMessages.value.push({ from: 'user', text: msg })
   aiInput.value = ''
   aiMessages.value.push({ from: 'bot', text: '...' })
+  aiLoading.value = true
   nextTick(() => { if (aiBodyRef.value) aiBodyRef.value.scrollTop = aiBodyRef.value.scrollHeight })
-  setTimeout(() => {
-    aiMessages.value[aiMessages.value.length - 1].text = AI_REPLIES[Math.floor(Math.random() * AI_REPLIES.length)]
+  try {
+    const result = await call('crm.api.ai_agent_center.query_agent', {
+      agent_key: 'general',
+      message: msg,
+      session_id: aiSessionId.value || null,
+    })
+    if (result.session_id) aiSessionId.value = result.session_id
+    aiMessages.value[aiMessages.value.length - 1].text = result.response || '(No response)'
+  } catch (e) {
+    aiMessages.value[aiMessages.value.length - 1].text = 'Maaf, terjadi kesalahan. Silakan coba lagi.'
+  } finally {
+    aiLoading.value = false
     nextTick(() => { if (aiBodyRef.value) aiBodyRef.value.scrollTop = aiBodyRef.value.scrollHeight })
-  }, 1200)
+  }
 }
 
 // ══════════════════════════════════════════════════════
