@@ -66,6 +66,26 @@
         </div>
       </div>
 
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div
+          v-for="item in relationshipFulfillment"
+          :key="item.title"
+          class="rounded-[14px] border border-crm-border bg-white p-4 shadow-sm"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold text-ink-gray-8">{{ __(item.title) }}</div>
+              <div class="mt-1 text-xs leading-relaxed text-ink-gray-5">{{ __(item.detail) }}</div>
+            </div>
+            <Badge :label="item.badge" variant="subtle" :theme="item.theme" />
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <Button :label="__('Create Request')" variant="solid" size="sm" @click="openRelationshipRequest(item)" />
+            <Button :label="__('View Vendor')" variant="subtle" size="sm" @click="openVendorProfile(vendors.find((v) => v.name === item.vendor))" />
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-3 gap-4">
         <div class="col-span-2 rounded-[14px] border border-crm-border bg-white p-4 shadow-sm">
           <div class="mb-3 flex items-center justify-between">
@@ -898,6 +918,39 @@ const requestForm = ref({
   slaBreached: false,
 })
 
+const relationshipFulfillment = [
+  {
+    title: 'Priority birthday hampers',
+    detail: 'For PT Bukit Asam director birthday. Use approved gift vendor, 24h SLA, and WhatsApp confirmation once delivered.',
+    badge: 'Gift',
+    theme: 'orange',
+    vendor: 'Nusa Gift Concierge',
+    type: 'Birthday Hampers',
+    priority: 'High',
+    owner: 'Aulia (Growth)',
+  },
+  {
+    title: 'Referral partner warm intro',
+    detail: 'Use BNI Referral Network to validate a referral opportunity from a loyal customer group.',
+    badge: 'Referral',
+    theme: 'green',
+    vendor: 'BNI Referral Network',
+    type: 'Referral Lead Validation',
+    priority: 'Normal',
+    owner: 'Aulia (Growth)',
+  },
+  {
+    title: 'Credit anniversary gesture',
+    detail: 'Prepare appreciation note and modest corporate gift for the facility anniversary.',
+    badge: 'Anniversary',
+    theme: 'blue',
+    vendor: 'Nusa Gift Concierge',
+    type: 'Credit Anniversary Gift',
+    priority: 'Normal',
+    owner: 'Ops Growth',
+  },
+]
+
 const pageTabs = computed(() => [
   { key: 'dashboard', label: 'Dashboard' },
   { key: 'directory', label: 'Vendor Directory', badge: vendors.value.length },
@@ -1190,6 +1243,32 @@ const vendors = ref([
     portalStatus: 'Active',
     portalLastLogin: '3 days ago',
   },
+  {
+    id: 'V-007',
+    name: 'Nusa Gift Concierge',
+    category: 'Referral Partner',
+    tier: 'Gold',
+    status: 'Active',
+    owner: 'Ops Growth',
+    region: 'Jakarta',
+    risk: 'Low',
+    score: 91,
+    slaCompliance: 98,
+    lastBreach: '—',
+    contractType: 'Corporate Gift Fulfillment',
+    contractStart: 'Jan 01, 2026',
+    contractEnd: 'Dec 31, 2026',
+    lastReview: 'May 2026',
+    contact: { name: 'Laras Putri', email: 'laras@nusagift.id', phone: '+62 812 6677 1002' },
+    services: ['Birthday Hampers', 'Anniversary Gifts', 'Delivery Confirmation'],
+    coverage: 'Jakarta · Java',
+    invoiceOutstanding: 'Rp 0 outstanding',
+    invoiceNote: 'Monthly billing current',
+    complianceStatus: 'Compliant',
+    nextAudit: 'Sep 2026',
+    portalStatus: 'Active',
+    portalLastLogin: 'Today',
+  },
 ])
 
 const vendorSearch = ref('')
@@ -1367,6 +1446,21 @@ function openVendorForm() {
 
 function openRequestForm() {
   resetRequestForm()
+  showRequestForm.value = true
+}
+
+function openRelationshipRequest(item) {
+  requestForm.value = {
+    type: item.type,
+    vendor: item.vendor,
+    requester: 'Andi - RM Commercial',
+    owner: item.owner,
+    priority: item.priority,
+    status: 'Assigned',
+    slaDue: item.priority === 'High' ? '24h' : '2 days',
+    slaBreached: false,
+  }
+  activeTab.value = 'requests'
   showRequestForm.value = true
 }
 
